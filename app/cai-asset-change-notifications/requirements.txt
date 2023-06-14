@@ -1,0 +1,5 @@
+requests
+
+### Requirements with minimum version
+google-cloud-secret-manager >= 2.2.0
+google-cloud-logging >= 2.2.0
