@@ -1,4 +1,4 @@
-requests
+requests >= 2.32.3
 
 ### Requirements with minimum version
 google-cloud-secret-manager >= 2.2.0
