@@ -1,4 +1,4 @@
 # Function dependencies, for example:
 # package>=version
-requests==2.31.0
+requests==2.32.2
 google-cloud-secret-manager>=2.2.0
