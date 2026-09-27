@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ Cloud Asset Inventory (CAI) & SCC Crown Jewel Change Notifications to Slack
+# 🛡️ Cloud Asset Inventory (CAI) Security monitoring of your Crown Jewels and notifications to Slack
 
 **Real-time Google Cloud Asset Inventory (CAI) & Security Command Center (SCC) change alerts for your Crown Jewel resources in Slack.**
 
