@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is git ignored.
+
+org_id     = "123456789012"
+project_id = "my-security-project"
+# region   = "europe-west1"
+
+# Output crypto_key_id of the kms module in ./kms.
+kms_crypto_key_id = "projects/my-security-project/locations/europe-west4/keyRings/cai-slack-notifier/cryptoKeys/slack-bot-token"
+
+# Output of the encrypt_command in the kms module. Single line, base64.
+slack_bot_token_ciphertext = "REPLACE-WITH-KMS-CIPHERTEXT-OF-SLACK-BOT-TOKEN"
+
+# Channel ID is more robust than a name. Invite the bot to the channel.
+slack_channel = "security-gcp-alerts"
+
+# Optional: notify only on these projects. Empty means all projects in the organization.
+# allowed_projects = ["prod-crown-jewels-01", "prod-networking-01"]
+
+# Optional: also stream active HIGH/CRITICAL SCC v2 findings to the same Slack channel.
+# enable_scc_notification = true

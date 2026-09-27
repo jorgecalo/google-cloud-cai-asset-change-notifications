@@ -1,0 +1,95 @@
+{
+  "window": {
+    "startTime": "2026-09-27T01:22:10.000Z"
+  },
+  "deleted": false,
+  "priorAssetState": "PRESENT",
+  "asset": {
+    "name": "//compute.googleapis.com/projects/prod-payments-01/zones/europe-west1-b/instances/prod-payments-db-01",
+    "assetType": "compute.googleapis.com/Instance",
+    "ancestors": [
+      "projects/200300400500",
+      "organizations/123456789012"
+    ],
+    "resource": {
+      "version": "v1",
+      "location": "europe-west1-b",
+      "parent": "//cloudresourcemanager.googleapis.com/projects/200300400500",
+      "data": {
+        "name": "prod-payments-db-01",
+        "status": "RUNNING",
+        "machineType": "https://www.googleapis.com/compute/v1/projects/prod-payments-01/zones/europe-west1-b/machineTypes/e2-standard-8",
+        "cpuPlatform": "Intel Cascade Lake",
+        "confidentialInstanceConfig": {
+          "enableConfidentialCompute": false
+        },
+        "shieldedInstanceConfig": {
+          "enableSecureBoot": false,
+          "enableVtpm": true,
+          "enableIntegrityMonitoring": true
+        },
+        "networkInterfaces": [
+          {
+            "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-01/global/networks/payments-vpc",
+            "networkIP": "10.20.0.15",
+            "accessConfigs": [
+              {
+                "type": "ONE_TO_ONE_NAT",
+                "name": "External NAT",
+                "natIP": "34.77.102.19",
+                "networkTier": "PREMIUM"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "priorAsset": {
+    "name": "//compute.googleapis.com/projects/prod-payments-01/zones/europe-west1-b/instances/prod-payments-db-01",
+    "assetType": "compute.googleapis.com/Instance",
+    "resource": {
+      "version": "v1",
+      "location": "europe-west1-b",
+      "data": {
+        "name": "prod-payments-db-01",
+        "status": "RUNNING",
+        "machineType": "https://www.googleapis.com/compute/v1/projects/prod-payments-01/zones/europe-west1-b/machineTypes/n2d-standard-4",
+        "cpuPlatform": "AMD Milan",
+        "confidentialInstanceConfig": {
+          "enableConfidentialCompute": true
+        },
+        "shieldedInstanceConfig": {
+          "enableSecureBoot": true,
+          "enableVtpm": true,
+          "enableIntegrityMonitoring": true
+        },
+        "networkInterfaces": [
+          {
+            "network": "https://www.googleapis.com/compute/v1/projects/prod-payments-01/global/networks/payments-vpc",
+            "networkIP": "10.20.0.15"
+          }
+        ]
+      }
+    }
+  },
+  "auditLog": {
+    "serviceName": "compute.googleapis.com",
+    "methodName": "v1.compute.instances.addAccessConfig",
+    "resourceName": "projects/prod-payments-01/zones/europe-west1-b/instances/prod-payments-db-01",
+    "authenticationInfo": {
+      "principalEmail": "prod-compute-admin@prod-payments-01.iam.gserviceaccount.com",
+      "serviceAccountDelegationInfo": [
+        {
+          "firstPartyPrincipal": {
+            "principalEmail": "sre-oncall@example.com"
+          }
+        }
+      ]
+    },
+    "requestMetadata": {
+      "callerIp": "203.0.113.88",
+      "callerSuppliedUserAgent": "google-cloud-sdk gcloud/492.0.0 command/gcloud.compute.instances.add-access-config invocation-id/a1b2c3d4"
+    }
+  }
+}

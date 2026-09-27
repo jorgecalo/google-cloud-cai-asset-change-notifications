@@ -1,0 +1,57 @@
+[
+    {
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": "<ALERT_HEADER>: <<WEB_LINK>|<SUBJECT>>"
+        }
+    },
+    {
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": "*Resource*: `<RESOURCE_NAME>`\n*Resource type*: `<RESOURCE_TYPE>`\n*Project*: `<PROJECT_ID>` | *Location*: `<LOCATION>`\n*Action*: *<CHANGE_ACTION>* <ACTION_EMOJI>\n*Event time*: `<TIMESTAMP>`"
+        },
+        "accessory": {
+            "type": "button",
+            "text": {
+                "type": "plain_text",
+                "text": "View in Cloud Console"
+            },
+            "value": "click_view",
+            "url": "<WEB_LINK>",
+            "action_id": "button-view"
+        }
+    },
+    {
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": "<ATTRIBUTION_DETAILS>"
+        }
+    },
+    {
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": "<SECURITY_HIGHLIGHTS>"
+        }
+    },
+    {
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": "*Change Diff (Cloud Asset Inventory):*\n<CHANGE_DIFF>"
+        }
+    },
+    {
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": "*Recommendation:*\n<RECOMMENDATION>"
+        }
+    },
+    {
+        "type": "divider"
+    }
+]

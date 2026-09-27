@@ -1,0 +1,86 @@
+{
+  "window": {
+    "startTime": "2026-09-27T01:15:42.000Z"
+  },
+  "deleted": false,
+  "priorAssetState": "PRESENT",
+  "asset": {
+    "name": "//compute.googleapis.com/projects/prod-networking-01/global/firewalls/allow-prod-ssh-ingress",
+    "assetType": "compute.googleapis.com/Firewall",
+    "ancestors": [
+      "projects/100200300400",
+      "folders/9988776655",
+      "organizations/123456789012"
+    ],
+    "resource": {
+      "version": "v1",
+      "discoveryDocumentUri": "https://www.googleapis.com/discovery/v1/apis/compute/v1/rest",
+      "discoveryName": "Firewall",
+      "parent": "//cloudresourcemanager.googleapis.com/projects/100200300400",
+      "location": "global",
+      "data": {
+        "name": "allow-prod-ssh-ingress",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-networking-01/global/networks/prod-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "disabled": false,
+        "sourceRanges": [
+          "0.0.0.0/0"
+        ],
+        "allowed": [
+          {
+            "IPProtocol": "tcp",
+            "ports": [
+              "22",
+              "3389"
+            ]
+          }
+        ],
+        "logConfig": {
+          "enable": true
+        }
+      }
+    }
+  },
+  "priorAsset": {
+    "name": "//compute.googleapis.com/projects/prod-networking-01/global/firewalls/allow-prod-ssh-ingress",
+    "assetType": "compute.googleapis.com/Firewall",
+    "resource": {
+      "version": "v1",
+      "location": "global",
+      "data": {
+        "name": "allow-prod-ssh-ingress",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-networking-01/global/networks/prod-vpc",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "disabled": false,
+        "sourceRanges": [
+          "10.128.0.0/16"
+        ],
+        "allowed": [
+          {
+            "IPProtocol": "tcp",
+            "ports": [
+              "22"
+            ]
+          }
+        ],
+        "logConfig": {
+          "enable": true
+        }
+      }
+    }
+  },
+  "auditLog": {
+    "serviceName": "compute.googleapis.com",
+    "methodName": "v1.compute.firewalls.patch",
+    "resourceName": "projects/prod-networking-01/global/firewalls/allow-prod-ssh-ingress",
+    "authenticationInfo": {
+      "principalEmail": "j.doe@example.com"
+    },
+    "requestMetadata": {
+      "callerIp": "198.51.100.42",
+      "callerSuppliedUserAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36,gzip(gfe) CloudConsole"
+    }
+  }
+}

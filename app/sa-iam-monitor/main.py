@@ -1,182 +1,289 @@
-import requests 
+"""Service Account IAM policy change monitor.
+
+Triggered by Cloud Asset Inventory (CAI) IAM_POLICY feed notifications on
+Pub/Sub when IAM bindings on a Service Account (`iam.googleapis.com/ServiceAccount`)
+are added, removed, or altered.
+"""
+
 import base64
+import html
 import json
+import os
+import urllib.error
+import urllib.request
+from urllib.parse import urlparse
 
-from google.cloud import secretmanager
+try:
+    import requests
+except ImportError:
+    class _UrllibResponse:
+        def __init__(self, status_code, body_bytes):
+            self.status_code = status_code
+            self._body = body_bytes
 
-def get_secret(secret_id="secret_teams_webhook", version_id="latest", project_id="asml-dta-tst-tstsusi"):
-    client = secretmanager.SecretManagerServiceClient()
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(f"HTTP {self.status_code}")
+
+    class _UrllibRequestsShim:
+        @staticmethod
+        def post(url, headers=None, json=None, timeout=10):
+            payload = __import__("json").dumps(json).encode("utf-8") if json is not None else None
+            req = urllib.request.Request(url, data=payload, headers=headers or {}, method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return _UrllibResponse(resp.status, resp.read())
+
+    requests = _UrllibRequestsShim()
+
+try:
+    import functions_framework
+except ImportError:
+    functions_framework = None
+
+try:
+    from google.cloud import secretmanager
+except ImportError:
+    secretmanager = None
+
+WEBHOOK_TIMEOUT_SECONDS = 10
+_secret_client = None
+
+
+def get_secret(secret_id=None, version_id="latest", project_id=None):
+    """Retrieve the Teams webhook URL from environment or Secret Manager."""
+    env_webhook = os.environ.get("TEAMS_WEBHOOK_URL", "").strip()
+    if env_webhook and not env_webhook.startswith("projects/"):
+        return env_webhook
+
+    if secretmanager is None:
+        raise RuntimeError(
+            "TEAMS_WEBHOOK_URL is not set and google-cloud-secret-manager is not installed."
+        )
+
+    global _secret_client
+    if _secret_client is None:
+        _secret_client = secretmanager.SecretManagerServiceClient()
+
+    secret_id = secret_id or os.environ.get("SECRET_ID", "secret_teams_webhook")
+    project_id = (
+        project_id
+        or os.environ.get("GCP_PROJECT")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    )
+    if not project_id:
+        raise ValueError(
+            "GCP_PROJECT (or TEAMS_WEBHOOK_URL) environment variable must be set."
+        )
+
     name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
     request = secretmanager.AccessSecretVersionRequest(name=name)
-    # print(client.access_secret_version(request=request).payload.data.decode("utf-8"))
-    return client.access_secret_version(request=request).payload.data.decode("utf-8")
+    return _secret_client.access_secret_version(request=request).payload.data.decode("utf-8").strip()
 
-def hello_pubsub(event, context):
-    """Triggered from a message on a Cloud Pub/Sub topic.
-    Args:
-         event (dict): Event payload.
-         context (google.cloud.functions.Context): Metadata for the event.
-    """
-    pubsub_message = base64.b64decode(event['data']).decode('utf-8')
-    json_pubsub_message = json.loads(pubsub_message) 
 
-    webhook = str(get_secret())
+def _decode_event(event):
+    """Extract JSON payload from either a 2nd gen CloudEvent or 1st gen Pub/Sub event dict."""
+    if hasattr(event, "data") and isinstance(event.data, dict):
+        event = event.data
+    if isinstance(event, dict) and "message" in event and isinstance(event["message"], dict):
+        raw_b64 = event["message"]["data"]
+    else:
+        raw_b64 = event["data"]
+    pubsub_message = base64.b64decode(raw_b64).decode("utf-8")
+    return json.loads(pubsub_message)
 
-    message, title = create_message(json_pubsub_message)
 
-    if message is not None: 
-        send_teams(webhook_url=webhook, message=message, title=title)
+def _aggregate_bindings(bindings):
+    """Aggregate members per role so duplicate role entries (e.g., IAM conditions) are merged."""
+    aggregated = {}
+    if not isinstance(bindings, list):
+        return aggregated
+    for binding in bindings:
+        if not isinstance(binding, dict) or "role" not in binding:
+            continue
+        role = binding["role"]
+        members = binding.get("members") or []
+        existing = aggregated.setdefault(role, [])
+        for member in members:
+            if member not in existing:
+                existing.append(member)
+    return aggregated
 
 
 def compare_bindings(current_bindings, old_bindings):
-    """
-    Compare current and previous binding to check if any new changes have been made.
-    Args:
-        current_bindings (list of dict): current IAM policy in place.
-        old_bindings (list of dict): old IAM policy.
-    """
-    # find roles that were added/removed.
-    current_roles = [binding['role'] for binding in current_bindings]
-    old_roles = [binding['role']for binding in old_bindings]
+    """Compare current and previous IAM policy bindings to identify added/removed roles and members."""
+    curr_map = _aggregate_bindings(current_bindings)
+    old_map = _aggregate_bindings(old_bindings)
 
-    added_roles = [role for role in current_roles if role not in old_roles]
-    removed_roles = [role for role in old_roles if role not in current_roles]
+    current_roles = list(curr_map.keys())
+    old_roles = list(old_map.keys())
 
-    # find added/removed members from roles.
-    remaining_roles =  [role for role in current_roles if role in old_roles]
+    added_roles = [role for role in current_roles if role not in old_map]
+    removed_roles = [role for role in old_roles if role not in curr_map]
+    remaining_roles = [role for role in current_roles if role in old_map]
+
     altered_members = []
-
-    # for each remaining role, extract the member from current and old bindings. 
-    # then compare to see if any members have changed.
     for remaining_role in remaining_roles:
-        for current_binding in current_bindings: # find the members in current bindings 
-            if current_binding['role'] == remaining_role:
-                for old_binding in old_bindings: # find the members in old bindings
-                    if old_binding['role'] == remaining_role:
-
-                        # find members that were added/removed.
-                        added_members = [member for member in current_binding['members'] if member not in old_binding['members']]
-                        removed_members = [member for member in old_binding['members'] if member not in current_binding['members']]
-
-                        # only update if the members were actually changed.
-                        if (len(added_members) or len(removed_members)) > 0:
-                            altered_members.append({remaining_role: ({"added_members": added_members}, {"removed_members": removed_members})})
+        curr_members = curr_map[remaining_role]
+        prev_members = old_map[remaining_role]
+        added_members = [m for m in curr_members if m not in prev_members]
+        removed_members = [m for m in prev_members if m not in curr_members]
+        if added_members or removed_members:
+            altered_members.append(
+                {
+                    remaining_role: (
+                        {"added_members": added_members},
+                        {"removed_members": removed_members},
+                    )
+                }
+            )
 
     return added_roles, removed_roles, altered_members
 
 
 def craft_roles_message(roles, bindings, update):
-    """
-    Craft message to alert when an IAM policy is added/deleted.
-    Args:
-        roles (list): list of role names.
-        bindings (list of dict): IAM policy.
-        update (string): added/deleted.
-    """
-    message = f"IAM policy has been <b>{update}</b>.<ol>"
+    """Craft HTML message to alert when IAM roles are added or removed."""
+    curr_map = _aggregate_bindings(bindings)
+    safe_update = html.escape(str(update))
+    message = f"IAM policy has been <b>{safe_update}</b>.<ol>"
 
     for role in roles:
-        for binding in bindings:
-            if binding['role'] == role:
-
-                message += f"<li>{role}</li><ul>"
-                for member in binding['members']:
-                    message += f"""<li>{member}</li>"""
-                message += "</ul>"
+        if role in curr_map:
+            message += f"<li>{html.escape(str(role))}<ul>"
+            for member in curr_map[role]:
+                message += f"<li>{html.escape(str(member))}</li>"
+            message += "</ul></li>"
 
     message += "</ol>"
     return message
 
+
 def craft_member_adjust_message(altered_members, bindings):
-    """
-    Craft message to alert when IAM policy has been changed (the members).
-    Args:
-        altered_members ([rolename: ({added}, removed)]): information containing altered roles and their respective members.
-        bindings (list of dict): IAM policy.
-    """
+    """Craft HTML message to alert when IAM policy role members are modified."""
+    curr_map = _aggregate_bindings(bindings)
     message = "IAM Policy has been <b>altered</b>.<ol>"
 
     for am in altered_members:
         for role, members in am.items():
-            message += f"<li>{role}</li><ol><li><b>Added Members:</b> <ul>"
-            for added_member in members[0]['added_members']:
-                message += f"<li>{added_member}</li>"
-            message += """</li></ul>
-                        <li><b>Removed Members:</b><ul>"""
-            for removed_member in members[1]['removed_members']:
-                message += f"<li>{removed_member}</li>"
-            message += """</li></ul>
-            <li>All Current Members:<ul>"""
-
-            for binding in bindings:
-                if binding['role'] == role:
-                    for member in binding['members']:
-                        message += f"<li>{member}</li>"
-            message += "</li></ul></ol>"
+            safe_role = html.escape(str(role))
+            message += f"<li>{safe_role}<ol><li><b>Added Members:</b><ul>"
+            for added_member in members[0]["added_members"]:
+                message += f"<li>{html.escape(str(added_member))}</li>"
+            message += "</ul></li><li><b>Removed Members:</b><ul>"
+            for removed_member in members[1]["removed_members"]:
+                message += f"<li>{html.escape(str(removed_member))}</li>"
+            message += "</ul></li><li>All Current Members:<ul>"
+            for member in curr_map.get(role, []):
+                message += f"<li>{html.escape(str(member))}</li>"
+            message += "</ul></li></ol></li>"
     message += "</ol>"
-    return message 
+    return message
 
-def create_message(content:str):
-    """
-    Craft a message to send to teams.
-    Args:
-        content (json) : content of event received by cloud feed.
-    """
-    # extract useful variables
-    msg_args = {}
-    msg_args['prior_state'] = content["priorAssetState"]
-    msg_args['current_bindings'] = content['asset']['iamPolicy']["bindings"]
-    msg_args['id'] = content['asset']['name'].split("/")[-1]
-    msg_args['project'] = content['asset']['name'].split("/")[-3]
-    
+
+def create_message(content):
+    """Craft a notification message and title from a CAI Service Account IAM policy event."""
+    if not isinstance(content, dict):
+        return None, ""
+
+    prior_state = content.get("priorAssetState", "PRESENT")
+    asset = content.get("asset") or {}
+    prior_asset = content.get("priorAsset") or {}
+
+    current_bindings = (asset.get("iamPolicy") or {}).get("bindings") or []
+    old_bindings = (prior_asset.get("iamPolicy") or {}).get("bindings") or []
+
+    asset_name = asset.get("name") or prior_asset.get("name") or ""
+    parts = asset_name.split("/")
+    sa_id = html.escape(parts[-1] if parts else "unknown")
+    project = html.escape(parts[-3] if len(parts) >= 3 else "unknown")
+
+    title = f"Service account <b>{sa_id}</b> alert on Project <b>{project}</b>!"
+
+    message = None
     messages = []
-    title = "Service account <b>{id}</b> alert on Project <b>{project}</b>!".format(**msg_args)
 
-    if msg_args['prior_state'] == "PRESENT":
-        msg_args['old_bindings'] = content['priorAsset']['iamPolicy']["bindings"]
+    if prior_state == "PRESENT" or prior_state == "DOES_NOT_EXIST":
+        added_roles, removed_roles, altered_members = compare_bindings(
+            current_bindings, old_bindings
+        )
 
-        added_roles, removed_roles, altered_members = compare_bindings(msg_args['current_bindings'], msg_args['old_bindings'])
+        if added_roles:
+            messages.append(craft_roles_message(added_roles, current_bindings, "added"))
+        if removed_roles:
+            messages.append(craft_roles_message(removed_roles, old_bindings, "removed"))
+        if altered_members:
+            messages.append(craft_member_adjust_message(altered_members, current_bindings))
 
-        messages = []
+        if messages:
+            message = "".join(messages)
 
-        if len(added_roles) > 0:
-            messages.append(craft_roles_message(added_roles, msg_args['current_bindings'], "added"))
-        
-        if len(removed_roles) > 0:
-            messages.append(craft_roles_message(removed_roles, msg_args['old_bindings'], "removed"))
-
-        if len(altered_members) > 0:
-            messages.append(craft_member_adjust_message(altered_members, msg_args['current_bindings']))
-
-        if len(messages) > 0:
-            message = ""
-            for m in messages:
-                message += m
-        else:
-            message = None 
-   
-    return message, title 
+    return message, title
 
 
-def send_teams(webhook_url:str, message:str, title:str, color:str="FF0000") -> int:
-    """
-      - Send a teams notification to the desired webhook_url
-      - Returns the status code of the HTTP request
-        - webhook_url : the url you got from the teams webhook configuration
-        - content : your formatted notification content
-        - title : the message that'll be displayed as title, and on phone notifications
-        - color (optional) : hexadecimal code of the notification's top line color, default corresponds to black
-    """
+def send_teams(webhook_url: str, message: str, title: str, color: str = "FF0000") -> int:
+    """Send a Microsoft Teams notification (supports Workflows Adaptive Cards & Connector MessageCards)."""
+    parsed = urlparse(webhook_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ValueError("Teams webhook URL must use https://")
+
+    payload = {
+        "@type": "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "themeColor": color,
+        "summary": title,
+        "sections": [
+            {
+                "activityTitle": title,
+                "activitySubtitle": message,
+            }
+        ],
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "size": "Medium",
+                            "weight": "Bolder",
+                            "text": title,
+                            "wrap": True,
+                        },
+                        {
+                            "type": "TextBlock",
+                            "text": message,
+                            "wrap": True,
+                        },
+                    ],
+                },
+            }
+        ],
+    }
+
     response = requests.post(
         url=webhook_url,
         headers={"Content-Type": "application/json"},
-        json={
-            "themeColor": color,
-            "summary": title,
-            "sections": [{
-                "activityTitle": title,
-                "activitySubtitle": message
-            }],
-        },
+        json=payload,
+        timeout=WEBHOOK_TIMEOUT_SECONDS,
     )
-    print(response.status_code) # Should be 200
+    response.raise_for_status()
+    return response.status_code
+
+
+def _entry_point(event, context=None):
+    """Triggered from a message on a Cloud Pub/Sub topic (Gen 2 CloudEvent or Gen 1 event)."""
+    json_pubsub_message = _decode_event(event)
+    message, title = create_message(json_pubsub_message)
+
+    if message is not None:
+        webhook = str(get_secret())
+        send_teams(webhook_url=webhook, message=message, title=title)
+
+
+if functions_framework is not None:
+    hello_pubsub = functions_framework.cloud_event(_entry_point)
+else:
+    hello_pubsub = _entry_point

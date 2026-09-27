@@ -1,0 +1,11 @@
+project_id = "my-security-project"
+# kms_location = "europe-west4"
+
+encrypter_members = [
+  "group:secops@example.com",
+]
+
+# The identity that runs `terraform apply` for the parent notifier module.
+decrypter_members = [
+  "serviceAccount:terraform@my-security-project.iam.gserviceaccount.com",
+]
