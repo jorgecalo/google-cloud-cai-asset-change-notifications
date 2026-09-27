@@ -880,20 +880,83 @@ def analyze_security_posture(notification, attribution):
             "Verify whether this manual change was authorized under an emergency break-glass procedure and reconcile it into Terraform to prevent state drift."
         )
 
-    # 2. Firewall rules: check 0.0.0.0/0 or ::/0 public ingress
+    # 2. Firewall rules: check source/destination IPs, port ranges/protocols, and logging changes
     if "Firewall" in asset_type and action != "DELETED":
-        source_ranges = current_data.get("sourceRanges") or []
-        if "0.0.0.0/0" in source_ranges or "::/0" in source_ranges:
-            allowed = current_data.get("allowed") or []
-            ports_summary = ", ".join(
+        def _fmt_ports(rules_list):
+            if not isinstance(rules_list, list):
+                return ""
+            return ", ".join(
                 f"{a.get('IPProtocol', 'all')}:{','.join(a.get('ports', ['all']))}"
-                for a in allowed if isinstance(a, dict)
-            ) or "all traffic"
+                for a in rules_list if isinstance(a, dict)
+            )
+
+        source_ranges = current_data.get("sourceRanges") or []
+        prior_source_ranges = prior_data.get("sourceRanges") or []
+        dest_ranges = current_data.get("destinationRanges") or []
+        prior_dest_ranges = prior_data.get("destinationRanges") or []
+
+        curr_allowed = _fmt_ports(current_data.get("allowed") or [])
+        prior_allowed = _fmt_ports(prior_data.get("allowed") or [])
+        curr_denied = _fmt_ports(current_data.get("denied") or [])
+        prior_denied = _fmt_ports(prior_data.get("denied") or [])
+
+        # 2a. Source IP ranges (0.0.0.0/0 public ingress + added/removed CIDRs)
+        if "0.0.0.0/0" in source_ranges or "::/0" in source_ranges:
+            ports_summary = curr_allowed or "all traffic"
             highlights.append(
                 f":rotating_light: *Public Internet Ingress (`0.0.0.0/0`)*: Firewall rule exposes `{escape_mrkdwn(ports_summary)}` to the public internet."
             )
             recommendations.append(
                 "Restrict `sourceRanges` to trusted corporate CIDRs, Identity-Aware Proxy (`35.235.240.0/20`), or internal VPC ranges."
+            )
+        if set(source_ranges) != set(prior_source_ranges) and (source_ranges or prior_source_ranges):
+            added_src = sorted(set(source_ranges) - set(prior_source_ranges))
+            removed_src = sorted(set(prior_source_ranges) - set(source_ranges))
+            parts = []
+            if added_src:
+                parts.append(f"added `{escape_mrkdwn(', '.join(added_src))}`")
+            if removed_src:
+                parts.append(f"removed `{escape_mrkdwn(', '.join(removed_src))}`")
+            highlights.append(
+                f":warning: *Firewall Source IP Ranges Modified*: {', '.join(parts)}."
+            )
+
+        # 2b. Destination IP ranges (added/removed CIDRs)
+        if set(dest_ranges) != set(prior_dest_ranges) and (dest_ranges or prior_dest_ranges):
+            added_dst = sorted(set(dest_ranges) - set(prior_dest_ranges))
+            removed_dst = sorted(set(prior_dest_ranges) - set(dest_ranges))
+            parts = []
+            if added_dst:
+                parts.append(f"added `{escape_mrkdwn(', '.join(added_dst))}`")
+            if removed_dst:
+                parts.append(f"removed `{escape_mrkdwn(', '.join(removed_dst))}`")
+            highlights.append(
+                f":warning: *Firewall Destination IP Ranges Modified*: {', '.join(parts)}."
+            )
+
+        # 2c. Port ranges & protocols (allowed / denied)
+        if curr_allowed != prior_allowed and (curr_allowed or prior_allowed):
+            highlights.append(
+                f":warning: *Firewall Allowed Port Ranges / Protocols Changed*: `{escape_mrkdwn(prior_allowed or 'none')}` -> `{escape_mrkdwn(curr_allowed or 'none')}`."
+            )
+        if curr_denied != prior_denied and (curr_denied or prior_denied):
+            highlights.append(
+                f":warning: *Firewall Denied Port Ranges / Protocols Changed*: `{escape_mrkdwn(prior_denied or 'none')}` -> `{escape_mrkdwn(curr_denied or 'none')}`."
+            )
+
+        # 2d. Firewall Rule Logging (logConfig.enable / logConfig.metadata)
+        log_cfg = current_data.get("logConfig") or {}
+        prior_log_cfg = prior_data.get("logConfig") or {}
+        if prior_log_cfg.get("enable") is True and log_cfg.get("enable") is False:
+            highlights.append(
+                ":rotating_light: *Firewall Rule Logging Disabled*: `logConfig.enable` was turned off (`true -> false`), blinding network traffic audit logs for this rule."
+            )
+            recommendations.append(
+                "Re-enable Firewall Rules Logging (`logConfig.enable = true`) to maintain visibility into allowed/denied connections."
+            )
+        elif log_cfg != prior_log_cfg and (log_cfg or prior_log_cfg):
+            highlights.append(
+                f":information_source: *Firewall Logging Configuration Changed*: `logConfig` updated (`enable={log_cfg.get('enable')}`, `metadata={escape_mrkdwn(str(log_cfg.get('metadata', 'n/a')))}`)."
             )
 
     # 3. Compute Instance: check external IP (ONE_TO_ONE_NAT), machineType, Shielded VM, Confidential Compute

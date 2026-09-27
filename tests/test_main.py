@@ -80,8 +80,27 @@ class TestCaiSlackNotifications(unittest.TestCase):
         self.assertIn("Google Cloud Console (Web UI / ClickOps)", text)
         # Security highlights
         self.assertIn("Public Internet Ingress (`0.0.0.0/0`)", text)
+        self.assertIn("Firewall Source IP Ranges Modified", text)
+        self.assertIn("Firewall Allowed Port Ranges / Protocols Changed", text)
         self.assertIn("Manual Change Outside IaC", text)
         self.assertEqual(blocks[-1], {"type": "divider"})
+
+    def test_firewall_destination_ips_port_ranges_and_logging_disabled(self):
+        payload = load_fixture("firewall_open_ssh_console.json")
+        payload["priorAsset"]["resource"]["data"]["destinationRanges"] = ["10.10.0.0/16"]
+        payload["asset"]["resource"]["data"]["destinationRanges"] = ["10.10.0.0/16", "172.16.0.0/12"]
+        payload["priorAsset"]["resource"]["data"]["logConfig"] = {"enable": True, "metadata": "INCLUDE_ALL_METADATA"}
+        payload["asset"]["resource"]["data"]["logConfig"] = {"enable": False}
+
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("Firewall Destination IP Ranges Modified", text)
+        self.assertIn("172.16.0.0/12", text)
+        self.assertIn("Firewall Allowed Port Ranges / Protocols Changed", text)
+        self.assertIn("`tcp:22` -> `tcp:22,3389`", text)
+        self.assertIn("Firewall Rule Logging Disabled", text)
+        self.assertIn("logConfig.enable", text)
 
     def test_compute_vm_gcloud_cli_and_impersonation(self):
         payload = load_fixture("compute_vm_external_ip_gcloud.json")
