@@ -12,7 +12,7 @@
 
 </div>
 
-Even when you enforce the **principle of least privilege**, privileged engineers, CI/CD pipelines, or break-glass accounts still require access to your organization's **Crown Jewels**—critical VPC firewall rules, production compute instances, VPC networks, Secret Manager vaults, Cloud KMS keys, and IAM policies. Because these resources are so sensitive, any modification requires immediate visibility.
+Even when you enforce the **principle of least privilege**, privileged engineers, CI/CD pipelines, or break-glass accounts still require access to your organization's **Crown Jewels**—critical VPC firewall rules, production compute instances, VPC networks, **IAM policies & service accounts**, **Secret Manager vaults**, **Cloud KMS keys**, and **sensitive data sources (Cloud SQL, BigQuery, Cloud Storage)**. Because these resources are so sensitive, any modification requires immediate visibility.
 
 Google Cloud Asset Inventory (natively integrated with **Security Command Center**) streams real-time `RESOURCE` and `IAM_POLICY` changes to a Pub/Sub topic. A 2nd gen **Cloud Run function** computes the **before/after CAI diff**, correlates the event with **Cloud Audit Logs** to attribute **Who** made the change (User vs. Service Account / Impersonation) and **How** it was executed (**Google Cloud Console ClickOps**, **Terraform**, or **`gcloud` CLI**), and posts a rich **Slack Block Kit** alert to your security channel. Everything is deployed with Terraform and secured with **Cloud KMS** secret encryption.
 
@@ -21,7 +21,7 @@ Google Cloud Asset Inventory (natively integrated with **Security Command Center
 ```mermaid
 flowchart LR
     Assets["Crown Jewel Assets
-    (VMs, Firewalls, VPCs, Secrets, KMS, IAM)"]
+    (VMs, Firewalls, VPCs, IAM, Secrets, KMS, Cloud SQL, BigQuery)"]
     CAI["Cloud Asset Inventory & SCC v2
     (RESOURCE & IAM_POLICY Feeds)"]
     PubSub["Cloud Pub/Sub
@@ -239,6 +239,16 @@ python3 app/cai-asset-change-notifications/main.py tests/fixtures/compute_vm_ext
 SLACK_BOT_TOKEN=xoxb-your-token \
 SLACK_CHANNEL=C0123456789 \
 python3 app/cai-asset-change-notifications/main.py tests/fixtures/secret_manager_iam_terraform.json --send
+
+# Demo 4: IAM Privilege Escalation (existing Service Account gains TokenCreator + added BigQuery Admin role)
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/iam_privilege_escalation.json --send
+
+# Demo 5: Cloud SQL Database SSL Enforcement Disabled & Network Access IP Range Expanded
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/cloudsql_ssl_and_network_expanded.json --send
 ```
 </details>
 
@@ -288,7 +298,7 @@ See [Deployment](#-deployment) for the full steps and required permissions.
 - **Cloud Audit Logs Attribution (`Who` & `How`).** Correlates asset changes with Google Cloud Audit Logs (`cloudaudit.googleapis.com/activity`) to identify:
   - **Who did the change:** Human User (`User Account`), `Service Account`, `Workload Identity`, or **Service Account Impersonation** (`User ➔ Service Account` delegation chain).
   - **How the change was executed:** **Terraform (IaC)**, **Google Cloud Console (Web UI / ClickOps)**, **`gcloud` CLI** (including the exact command), or **API / SDK**.
-- **Automated Risk & Drift Detection.** Flags high-risk changes such as **ClickOps / manual changes outside Terraform**, `0.0.0.0/0` public firewall ingress, `ONE_TO_ONE_NAT` public IPs on VMs, disabled Shielded VM / Confidential Compute / Private Google Access, and privileged or public (`allUsers`) IAM grants.
+- **Automated Risk & Drift Detection.** Flags high-risk changes such as **ClickOps / manual changes outside Terraform**, **IAM privilege escalation** (users/SAs gaining additional roles or custom role permissions), **database configuration weakening** (Cloud SQL SSL enforcement disabled or `authorizedNetworks` IP ranges expanded), `0.0.0.0/0` public firewall ingress, and `ONE_TO_ONE_NAT` public IPs on VMs.
 - **Encrypted secret handling with Cloud KMS.** The Slack bot token is committed only as **Cloud KMS ciphertext** (`cryptoKeyEncrypter` / `cryptoKeyDecrypter`) and injected into the Cloud Run function via **Secret Manager**.
 - **Least-privilege architecture.** Dedicated service accounts for build (`cainotifier-build`) and runtime (`cainotifier`), `ALLOW_INTERNAL_ONLY` ingress, and IAM scoped strictly to the KMS key, secret, and Cloud Run service.
 
@@ -296,19 +306,26 @@ See [Deployment](#-deployment) for the full steps and required permissions.
 
 ## 🎯 Use Cases
 
-Even in cloud environments that strictly enforce the **principle of least privilege**, a subset of engineers, break-glass responders, or CI/CD service accounts must retain permissions to manage critical production assets. This solution addresses **three core security & operations use cases**:
+Even in cloud environments that strictly enforce the **principle of least privilege**, a subset of engineers, break-glass responders, or CI/CD service accounts must retain permissions to manage critical production assets. This solution addresses **core security & operations use cases**:
 
-### 1. Detecting "ClickOps" Drift & Network Perimeter Exposure (Firewalls & VPCs)
-- **Why it matters:** During an incident or debugging session, an authorized engineer might manually modify a production VPC firewall rule (`compute.googleapis.com/Firewall`) or subnetwork (`compute.googleapis.com/Subnetwork`) via the **Google Cloud Console**—for example, opening SSH/RDP (`tcp:22, 3389`) to `0.0.0.0/0` or disabling `privateIpGoogleAccess`—bypassing Git review and Terraform pipelines.
-- **What you get:** An instant Slack alert containing the exact before/after CAI diff (`sourceRanges: ["10.128.0.0/16"] -> ["0.0.0.0/0"]`), the human user who made the change, and a **⚠️ Manual Change Outside IaC (ClickOps)** warning so SecOps can verify or roll back the change immediately.
+### 1. IAM Privilege Escalation & Added Roles Monitoring (Users, Service Accounts & Custom Roles)
+- **Why it matters:** Privilege escalation often happens incrementally—an existing `user:` or `serviceAccount:` with baseline permissions (e.g., `roles/logging.logWriter` or `roles/viewer`) is granted additional roles (`roles/iam.serviceAccountTokenCreator`, `roles/bigquery.admin`, `roles/secretmanager.secretAccessor`), brand-new roles are added to an Organization/Folder/Project/Resource IAM policy, or a custom IAM role (`iam.googleapis.com/Role`) has its `includedPermissions` expanded.
+- **What you get:** The notifier compares `priorAsset.iamPolicy` and `asset.iamPolicy` per role **and per principal**, explicitly alerting on:
+  - **IAM Privilege Escalation:** When a user or service account gains more permissions than they previously held (`~ Privilege Escalation (serviceAccount:app-worker@...): gained ['roles/iam.serviceAccountTokenCreator'] (existing: ['roles/logging.logWriter'])`).
+  - **Added IAM Roles & Bindings:** Every newly introduced role (`+ IAM Role Added`) and newly bound principal (`+ IAM Binding`).
+  - **Custom Role Permission Expansion & SA Keys:** Added `includedPermissions` on `iam.googleapis.com/Role` and creation of user-managed `iam.googleapis.com/ServiceAccountKey` credentials.
+  - Covered by both the primary Slack notifier and the specialized IAM monitors ([`app/monitor-principals/`](file:///Users/jorgecalo/Documents/GitHub/google-cloud-cai-asset-change-notifications/app/monitor-principals) and [`app/sa-iam-monitor/`](file:///Users/jorgecalo/Documents/GitHub/google-cloud-cai-asset-change-notifications/app/sa-iam-monitor)).
 
-### 2. Compute Workload Security Posture & Public IP Monitoring (VM Instances)
-- **Why it matters:** Production Compute Engine VMs (`compute.googleapis.com/Instance`) hosting sensitive workloads should never unexpectedly receive a public IP (`ONE_TO_ONE_NAT`), have Shielded VM (`enableSecureBoot`, `enableVtpm`, `enableIntegrityMonitoring`) or Confidential Compute disabled, or drift from approved machine families (such as `n2d-` Confidential VMs).
-- **What you get:** Real-time detection when a VM's network exposure, security controls, or machine series is altered—including full visibility when an engineer uses **`gcloud` CLI with Service Account impersonation** (`sre-oncall@example.com` impersonating `prod-compute-admin@...`). Covered by both the primary Slack notifier ([`app/cai-asset-change-notifications/`](file:///Users/jorgecalo/Documents/GitHub/google-cloud-cai-asset-change-notifications/app/cai-asset-change-notifications)) and the dedicated machine-type monitor ([`app/monitor-cpu-machine-type/`](file:///Users/jorgecalo/Documents/GitHub/google-cloud-cai-asset-change-notifications/app/monitor-cpu-machine-type)).
+### 2. Database & Data Source Security Configuration Monitoring (Cloud SQL & BigQuery)
+- **Why it matters:** Production databases (`sqladmin.googleapis.com/Instance`) and analytics warehouses (`bigquery.googleapis.com/Dataset`, `bigquery.googleapis.com/Table`) hold your most sensitive business data. Subtle configuration changes—such as **disabling SSL enforcement** (`requireSsl: true -> false` or downgrading `sslMode` from `ENCRYPTED_ONLY` to `ALLOW_UNENCRYPTED_AND_ENCRYPTED`) or **expanding the network access IP range** (`settings.ipConfiguration.authorizedNetworks` adding a wider CIDR like `198.51.100.0/24` or `0.0.0.0/0`)—can expose databases to unencrypted traffic or external networks.
+- **What you get:** Instant Slack alerts with the exact configuration diff and dedicated risk signals whenever:
+  - **Database SSL Enforcement is Disabled** (`requireSsl: false` or `sslMode: ALLOW_UNENCRYPTED_AND_ENCRYPTED`).
+  - **Database Network Access IP Range is Expanded** (new CIDR blocks added to Cloud SQL `authorizedNetworks` or `ipv4Enabled` turned on).
+  - **BigQuery Dataset ACLs are Expanded** (new entries added to `resource.data.access` or public exposure via `allUsers` / `allAuthenticatedUsers`).
 
-### 3. Crown Jewel Secret Vault & IAM Privilege Escalation Auditing (Secrets, KMS & IAM)
-- **Why it matters:** Secret Manager secrets (`secretmanager.googleapis.com/Secret`), Cloud KMS keys (`cloudkms.googleapis.com/CryptoKey`), Service Accounts (`iam.googleapis.com/ServiceAccount`), and Project IAM policies are the keys to your cloud kingdom. Granting `roles/secretmanager.secretAccessor`, `roles/iam.serviceAccountTokenCreator`, or `roles/owner` to an unexpected principal—or rotating/destroying a production secret version—requires immediate audit visibility.
-- **What you get:** A clean diff of added, removed, or modified IAM role bindings and secret metadata (with secret payload values automatically redacted), plus attribution showing whether the change came from your expected **Terraform CI/CD service account** or an ad-hoc user command. Covered by both the primary Slack notifier and the specialized IAM monitors ([`app/monitor-principals/`](file:///Users/jorgecalo/Documents/GitHub/google-cloud-cai-asset-change-notifications/app/monitor-principals) and [`app/sa-iam-monitor/`](file:///Users/jorgecalo/Documents/GitHub/google-cloud-cai-asset-change-notifications/app/sa-iam-monitor)).
+### 3. Detecting "ClickOps" Drift, Compute Exposure & Secret Vault Changes (Firewalls, VMs, Secrets & KMS)
+- **Why it matters:** During an incident or debugging session, an authorized engineer might manually modify a production VPC firewall rule (`compute.googleapis.com/Firewall`), attach an external IP (`ONE_TO_ONE_NAT`) or change the machine series on a Compute Engine VM (`compute.googleapis.com/Instance`), or modify a Secret Manager secret (`secretmanager.googleapis.com/Secret`) or Cloud KMS key (`cloudkms.googleapis.com/CryptoKey`) via the **Google Cloud Console** or **`gcloud` CLI**—bypassing Git review and Terraform pipelines.
+- **What you get:** Real-time detection of `0.0.0.0/0` firewall ingress, VM external IPs, disabled Shielded VM / Confidential Compute controls, and secret/key modifications (with secret payload values automatically redacted), paired with a **⚠️ Manual Change Outside IaC (ClickOps / CLI)** warning whenever the change was not executed by Terraform.
 
 ---
 
@@ -318,11 +335,11 @@ Even with strict IAM and least privilege, authorized administrators or automatio
 
 | Category | CAI Asset Types (`monitored_asset_types`) | Why It Is a Crown Jewel |
 |---|---|---|
+| **Identity & Access (IAM)** | `cloudresourcemanager.googleapis.com/Organization`<br/>`cloudresourcemanager.googleapis.com/Folder`<br/>`cloudresourcemanager.googleapis.com/Project`<br/>`iam.googleapis.com/ServiceAccount`<br/>`iam.googleapis.com/ServiceAccountKey`<br/>`iam.googleapis.com/Role` | Detects **privilege escalation** (existing users or service accounts gaining additional roles/permissions), **newly added IAM roles**, custom role `includedPermissions` expansion, and service account key creation. |
+| **Database & Data Sources (Cloud SQL, BigQuery, Storage)** | `sqladmin.googleapis.com/Instance`<br/>`bigquery.googleapis.com/Dataset`<br/>`bigquery.googleapis.com/Table`<br/>`storage.googleapis.com/Bucket` | Detects **disabling SSL enforcement** (`requireSsl: false` / `sslMode` downgrade), **expanding network access IP ranges** (`authorizedNetworks` CIDRs), enabling public IPv4 (`ipv4Enabled`), and expanding BigQuery dataset ACLs or Cloud Storage bucket access. |
 | **Compute Resources** | `compute.googleapis.com/Instance`<br/>`compute.googleapis.com/InstanceTemplate`<br/>`container.googleapis.com/Cluster` | Detects public `ONE_TO_ONE_NAT` IP attachments, machine series drift, disabled Shielded VM / Confidential Compute, or GKE cluster exposure. |
 | **Networking & Firewall Rules** | `compute.googleapis.com/Firewall`<br/>`compute.googleapis.com/FirewallPolicy`<br/>`compute.googleapis.com/Network`<br/>`compute.googleapis.com/Subnetwork`<br/>`compute.googleapis.com/Route`<br/>`compute.googleapis.com/Router` | Detects `0.0.0.0/0` ingress rules, VPC peering changes, unauthorized routes, or disabling `privateIpGoogleAccess` and VPC Flow Logs. |
 | **Secrets & Encryption Keys** | `secretmanager.googleapis.com/Secret`<br/>`secretmanager.googleapis.com/SecretVersion`<br/>`cloudkms.googleapis.com/CryptoKey`<br/>`cloudkms.googleapis.com/KeyRing` | Detects secret creation/deletion, secret version changes, KMS rotation changes, or unauthorized `secretAccessor` / `cryptoKeyDecrypter` IAM bindings. |
-| **Identity & Access (IAM)** | `iam.googleapis.com/ServiceAccount`<br/>`iam.googleapis.com/ServiceAccountKey`<br/>`iam.googleapis.com/Role`<br/>`cloudresourcemanager.googleapis.com/Project` | Detects privilege escalation (`roles/owner`, `roles/iam.serviceAccountTokenCreator`), service account key creation, and custom role changes. |
-| **Data Stores** | `storage.googleapis.com/Bucket`<br/>`sqladmin.googleapis.com/Instance` | Detects public bucket exposure (`allUsers`), uniform bucket-level access removal, or Cloud SQL public IP / authorized network changes. |
 
 ---
 

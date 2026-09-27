@@ -1,0 +1,61 @@
+{
+  "window": {
+    "startTime": "2026-09-27T01:40:12.000Z"
+  },
+  "priorAssetState": "PRESENT",
+  "asset": {
+    "name": "//cloudresourcemanager.googleapis.com/projects/prod-core-01",
+    "assetType": "cloudresourcemanager.googleapis.com/Project",
+    "ancestors": [
+      "projects/112233445566",
+      "organizations/9876543210"
+    ],
+    "iamPolicy": {
+      "bindings": [
+        {
+          "role": "roles/logging.logWriter",
+          "members": [
+            "serviceAccount:app-worker@prod-core-01.iam.gserviceaccount.com"
+          ]
+        },
+        {
+          "role": "roles/iam.serviceAccountTokenCreator",
+          "members": [
+            "serviceAccount:app-worker@prod-core-01.iam.gserviceaccount.com"
+          ]
+        },
+        {
+          "role": "roles/bigquery.admin",
+          "members": [
+            "user:analyst@example.com"
+          ]
+        }
+      ]
+    }
+  },
+  "priorAsset": {
+    "name": "//cloudresourcemanager.googleapis.com/projects/prod-core-01",
+    "assetType": "cloudresourcemanager.googleapis.com/Project",
+    "iamPolicy": {
+      "bindings": [
+        {
+          "role": "roles/logging.logWriter",
+          "members": [
+            "serviceAccount:app-worker@prod-core-01.iam.gserviceaccount.com"
+          ]
+        }
+      ]
+    }
+  },
+  "auditLog": {
+    "serviceName": "cloudresourcemanager.googleapis.com",
+    "methodName": "SetIamPolicy",
+    "authenticationInfo": {
+      "principalEmail": "admin-breakglass@example.com"
+    },
+    "requestMetadata": {
+      "callerIp": "198.51.100.77",
+      "callerSuppliedUserAgent": "google-cloud-sdk gcloud/492.0.0 command/gcloud.projects.add-iam-policy-binding"
+    }
+  }
+}

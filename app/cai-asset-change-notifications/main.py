@@ -183,7 +183,15 @@ PRIVILEGED_ROLES = {
     "roles/compute.networkAdmin",
     "roles/compute.securityAdmin",
     "roles/resourcemanager.organizationAdmin",
+    "roles/resourcemanager.folderIamAdmin",
     "roles/resourcemanager.projectIamAdmin",
+    "roles/bigquery.admin",
+    "roles/bigquery.dataOwner",
+    "roles/bigquery.dataEditor",
+    "roles/cloudsql.admin",
+    "roles/cloudsql.client",
+    "roles/storage.admin",
+    "roles/storage.objectAdmin",
 }
 
 # Slack API errors worth retrying. Everything else is treated as permanent.
@@ -711,6 +719,19 @@ def diff_dicts(old_dict, new_dict, path="", max_lines=18):
                         lines.append(
                             f"~ {full_key}: {_format_scalar(old_val)} -> {_format_scalar(new_val)}"
                         )
+                elif all(isinstance(x, dict) for x in old_val + new_val) and (
+                    key in ("authorizedNetworks", "access")
+                ):
+                    added = [x for x in new_val if x not in old_val]
+                    removed = [x for x in old_val if x not in new_val]
+                    if added:
+                        lines.append(f"+ {full_key}: added {_format_scalar(added)}")
+                    if removed:
+                        lines.append(f"- {full_key}: removed {_format_scalar(removed)}")
+                    if not added and not removed:
+                        lines.append(
+                            f"~ {full_key}: {_format_scalar(old_val)} -> {_format_scalar(new_val)}"
+                        )
                 else:
                     lines.append(
                         f"~ {full_key}: {_format_scalar(old_val)} -> {_format_scalar(new_val)}"
@@ -742,10 +763,21 @@ def _normalize_bindings(bindings):
     return role_map
 
 
+def _normalize_principal_roles(bindings):
+    """Aggregate roles by principal (user / serviceAccount / group) from IAM bindings."""
+    principal_map = {}
+    for role, members in _normalize_bindings(bindings).items():
+        for member in members:
+            principal_map.setdefault(member, set()).add(role)
+    return principal_map
+
+
 def diff_iam_policies(old_iam, new_iam):
     """Compute human-readable diff lines between priorAsset.iamPolicy and asset.iamPolicy."""
-    old_map = _normalize_bindings((old_iam or {}).get("bindings") or [])
-    new_map = _normalize_bindings((new_iam or {}).get("bindings") or [])
+    old_bindings = (old_iam or {}).get("bindings") or []
+    new_bindings = (new_iam or {}).get("bindings") or []
+    old_map = _normalize_bindings(old_bindings)
+    new_map = _normalize_bindings(new_bindings)
     lines = []
 
     all_roles = sorted(set(old_map.keys()) | set(new_map.keys()))
@@ -763,6 +795,17 @@ def diff_iam_policies(old_iam, new_iam):
                 lines.append(f"+ IAM Binding ({role}): added {added}")
             if removed:
                 lines.append(f"- IAM Binding ({role}): removed {removed}")
+
+    # Highlight per-principal privilege escalation when an existing principal gains additional roles
+    old_principals = _normalize_principal_roles(old_bindings)
+    new_principals = _normalize_principal_roles(new_bindings)
+    for principal in sorted(new_principals.keys()):
+        prior_roles = old_principals.get(principal, set())
+        gained_roles = sorted(new_principals[principal] - prior_roles)
+        if prior_roles and gained_roles:
+            lines.append(
+                f"~ Privilege Escalation ({principal}): gained {gained_roles} (existing: {sorted(prior_roles)})"
+            )
 
     return lines
 
@@ -904,12 +947,138 @@ def analyze_security_posture(notification, attribution):
                 "Confirm the secret or key change aligns with your change-management ticket and verify IAM accessor bindings follow least privilege."
             )
 
-    # 6. IAM Policy changes: check privileged roles or public members
+    # 6. Database & Data Sources: Cloud SQL & BigQuery configuration changes
+    if "sqladmin.googleapis.com/Instance" in asset_type and action != "DELETED":
+        ip_cfg = (current_data.get("settings") or {}).get("ipConfiguration") or {}
+        prior_ip_cfg = (prior_data.get("settings") or {}).get("ipConfiguration") or {}
+
+        # Check SSL enforcement disabled or sslMode downgraded
+        curr_ssl = ip_cfg.get("requireSsl")
+        prior_ssl = prior_ip_cfg.get("requireSsl")
+        curr_ssl_mode = ip_cfg.get("sslMode")
+        prior_ssl_mode = prior_ip_cfg.get("sslMode")
+        if (
+            curr_ssl is False
+            or (prior_ssl is True and curr_ssl is not True)
+            or curr_ssl_mode == "ALLOW_UNENCRYPTED_AND_ENCRYPTED"
+        ):
+            ssl_detail = (
+                f"`sslMode: {prior_ssl_mode or 'ENCRYPTED_ONLY'} -> {curr_ssl_mode}`"
+                if curr_ssl_mode == "ALLOW_UNENCRYPTED_AND_ENCRYPTED"
+                else "`requireSsl: false`"
+            )
+            highlights.append(
+                f":rotating_light: *Database SSL Enforcement Disabled*: Unencrypted connections are permitted on this Cloud SQL instance ({ssl_detail})."
+            )
+            recommendations.append(
+                "Re-enable SSL enforcement (`requireSsl = true` and `sslMode = ENCRYPTED_ONLY` or `TRUSTED_CLIENT_CERTIFICATE_REQUIRED`) on the Cloud SQL instance."
+            )
+
+        # Check expanded network access IP ranges (authorizedNetworks) & public IPv4
+        auth_nets = ip_cfg.get("authorizedNetworks") or []
+        prior_auth_nets = prior_ip_cfg.get("authorizedNetworks") or []
+        curr_cidrs = {
+            n.get("value"): n.get("name") or "unnamed"
+            for n in auth_nets if isinstance(n, dict) and n.get("value")
+        }
+        prior_cidrs = {
+            n.get("value"): n.get("name") or "unnamed"
+            for n in prior_auth_nets if isinstance(n, dict) and n.get("value")
+        }
+        added_cidrs = [
+            f"{cidr} ({curr_cidrs[cidr]})" if curr_cidrs[cidr] != "unnamed" else cidr
+            for cidr in sorted(set(curr_cidrs.keys()) - set(prior_cidrs.keys()))
+        ]
+
+        if "0.0.0.0/0" in curr_cidrs or "::/0" in curr_cidrs:
+            highlights.append(
+                ":rotating_light: *Database Open to Public Internet (`0.0.0.0/0`)*: Cloud SQL `authorizedNetworks` allows connections from any IP address."
+            )
+            recommendations.append(
+                "Remove `0.0.0.0/0` from Cloud SQL `authorizedNetworks`, disable public IP (`ipv4Enabled = false`), and connect via Private Services Access or Cloud SQL Auth Proxy."
+            )
+        elif added_cidrs:
+            highlights.append(
+                f":warning: *Database Network Access IP Range Expanded*: Added authorized network CIDR(s) `{escape_mrkdwn(', '.join(added_cidrs))}` to Cloud SQL instance."
+            )
+            if not recommendations:
+                recommendations.append(
+                    "Verify that the newly added `authorizedNetworks` CIDR range belongs to an approved corporate or partner network, or migrate to Private IP with Cloud SQL Auth Proxy."
+                )
+
+        if ip_cfg.get("ipv4Enabled") is True and prior_ip_cfg.get("ipv4Enabled") is False:
+            highlights.append(
+                ":warning: *Database Public IPv4 Enabled*: `ipv4Enabled` was enabled on this Cloud SQL instance."
+            )
+
+    if "bigquery.googleapis.com" in asset_type and action != "DELETED":
+        access_entries = current_data.get("access") or []
+        prior_access = prior_data.get("access") or []
+        if any(
+            isinstance(a, dict)
+            and (a.get("iamMember") in ("allUsers", "allAuthenticatedUsers") or a.get("specialGroup") in ("allUsers", "allAuthenticatedUsers"))
+            for a in access_entries
+        ):
+            highlights.append(
+                ":rotating_light: *BigQuery Dataset Publicly Accessible*: Dataset `access` ACL grants access to `allUsers` or `allAuthenticatedUsers`!"
+            )
+            recommendations.append(
+                "Immediately remove `allUsers` / `allAuthenticatedUsers` from the BigQuery dataset access list."
+            )
+        else:
+            added_access = [a for a in access_entries if isinstance(a, dict) and a not in prior_access]
+            if prior_access and added_access:
+                highlights.append(
+                    f":warning: *BigQuery Dataset Access Expanded*: Added `{len(added_access)}` new access binding(s) to BigQuery dataset ACL."
+                )
+
+    # 7. Custom IAM Role permission expansion & Service Account Key creation
+    if asset_type == "iam.googleapis.com/Role" and action != "DELETED":
+        curr_perms = set(current_data.get("includedPermissions") or [])
+        prior_perms = set(prior_data.get("includedPermissions") or [])
+        added_perms = sorted(curr_perms - prior_perms)
+        if added_perms:
+            preview = ", ".join(added_perms[:6]) + (f" (+{len(added_perms) - 6} more)" if len(added_perms) > 6 else "")
+            highlights.append(
+                f":key: *IAM Custom Role Permissions Expanded*: Added `{len(added_perms)}` permission(s) (`{escape_mrkdwn(preview)}`) to custom role."
+            )
+            recommendations.append(
+                "Review the newly added permissions on this custom IAM role to ensure they do not introduce privilege escalation paths (such as `iam.serviceAccounts.getAccessToken` or `iam.roles.update`)."
+            )
+
+    if asset_type == "iam.googleapis.com/ServiceAccountKey" and action == "CREATED":
+        highlights.append(
+            ":key: *User-Managed Service Account Key Created*: A new persistent key was created for a Service Account."
+        )
+        recommendations.append(
+            "Prefer Workload Identity Federation or short-lived service account impersonation tokens over long-lived exported Service Account keys."
+        )
+
+    # 8. IAM Policy changes: monitor privilege escalation (more permissions for a user/SA) & added roles
     current_iam = (asset.get("iamPolicy") or {}).get("bindings") or []
     prior_iam = ((notification.get("priorAsset") or {}).get("iamPolicy") or {}).get("bindings") or []
     if current_iam or prior_iam:
         old_map = _normalize_bindings(prior_iam)
         new_map = _normalize_bindings(current_iam)
+        old_principals = _normalize_principal_roles(prior_iam)
+        new_principals = _normalize_principal_roles(current_iam)
+
+        # Detect newly added roles on the policy
+        newly_added_roles = sorted(set(new_map.keys()) - set(old_map.keys()))
+        if newly_added_roles:
+            highlights.append(
+                f":key: *Added IAM Role(s)*: `{escape_mrkdwn(', '.join(newly_added_roles))}` added to policy."
+            )
+
+        # Detect per-principal privilege escalation (existing user or SA granted additional roles)
+        for principal, current_roles in sorted(new_principals.items()):
+            prior_roles = old_principals.get(principal, set())
+            gained_roles = sorted(current_roles - prior_roles)
+            if prior_roles and gained_roles:
+                highlights.append(
+                    f":rotating_light: *IAM Privilege Escalation*: `{escape_mrkdwn(principal)}` gained `{escape_mrkdwn(', '.join(gained_roles))}` (in addition to existing `{escape_mrkdwn(', '.join(sorted(prior_roles)))}`)."
+                )
+
         for role, members in new_map.items():
             added_members = members - old_map.get(role, set())
             if not added_members:
@@ -931,7 +1100,7 @@ def analyze_security_posture(notification, attribution):
                         "Verify that granting this privileged IAM role adheres to least privilege and uses time-bound IAM Conditions or PAM where possible."
                     )
 
-    # 7. SCC Finding fallback
+    # 9. SCC Finding fallback
     if "finding" in notification and "asset" not in notification:
         finding = notification.get("finding") or {}
         props = finding.get("sourceProperties") or {}
@@ -989,6 +1158,10 @@ def console_url(notification, project_id):
             return f"https://console.cloud.google.com/networking/networks/details/{quote(short_name, safe='')}?project={p_enc}"
         if asset_type == "secretmanager.googleapis.com/Secret" and short_name:
             return f"https://console.cloud.google.com/security/secret-manager/secret/{quote(short_name, safe='')}/versions?project={p_enc}"
+        if asset_type == "sqladmin.googleapis.com/Instance" and short_name:
+            return f"https://console.cloud.google.com/sql/instances/{quote(short_name, safe='')}/overview?project={p_enc}"
+        if "bigquery.googleapis.com" in asset_type:
+            return f"https://console.cloud.google.com/bigquery?project={p_enc}"
         if asset_type == "iam.googleapis.com/ServiceAccount":
             return f"https://console.cloud.google.com/iam-admin/serviceaccounts?project={p_enc}"
         if "iamPolicy" in asset:

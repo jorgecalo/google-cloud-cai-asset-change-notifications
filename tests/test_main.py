@@ -122,11 +122,43 @@ class TestCaiSlackNotifications(unittest.TestCase):
         self.assertIn("roles/secretmanager.secretAccessor", text)
         self.assertIn("user:external-contractor@example.com", text)
 
+    def test_iam_privilege_escalation_and_added_roles(self):
+        payload = load_fixture("iam_privilege_escalation.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`prod-core-01`", text)
+        self.assertIn("`cloudresourcemanager.googleapis.com/Project`", text)
+        # Added roles detection
+        self.assertIn("Added IAM Role(s)", text)
+        self.assertIn("roles/bigquery.admin", text)
+        self.assertIn("roles/iam.serviceAccountTokenCreator", text)
+        # Per-principal privilege escalation detection (existing SA gained additional role)
+        self.assertIn("IAM Privilege Escalation", text)
+        self.assertIn("serviceAccount:app-worker@prod-core-01.iam.gserviceaccount.com", text)
+        self.assertIn("roles/logging.logWriter", text)
+
+    def test_database_ssl_disabled_and_network_ip_range_expanded(self):
+        payload = load_fixture("cloudsql_ssl_and_network_expanded.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`prod-customer-orders-sql`", text)
+        self.assertIn("`sqladmin.googleapis.com/Instance`", text)
+        # SSL enforcement disabled
+        self.assertIn("Database SSL Enforcement Disabled", text)
+        self.assertIn("ALLOW_UNENCRYPTED_AND_ENCRYPTED", text)
+        # Expanded network access IP range
+        self.assertIn("Database Network Access IP Range Expanded", text)
+        self.assertIn("198.51.100.0/24 (external-vendor-subnet)", text)
+
     def test_no_placeholders_left_in_any_fixture(self):
         for fname in (
             "firewall_open_ssh_console.json",
             "compute_vm_external_ip_gcloud.json",
             "secret_manager_iam_terraform.json",
+            "iam_privilege_escalation.json",
+            "cloudsql_ssl_and_network_expanded.json",
         ):
             payload = load_fixture(fname)
             dumped = json.dumps(cai_main.build_blocks(payload))

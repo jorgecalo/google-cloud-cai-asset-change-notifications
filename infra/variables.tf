@@ -57,7 +57,7 @@ variable "enable_iam_feed" {
 }
 
 variable "monitored_asset_types" {
-  description = "Crown Jewel CAI Asset Types to monitor for configuration and IAM changes (compute, networking, firewall rules, secrets, KMS keys, IAM)."
+  description = "Crown Jewel CAI Asset Types to monitor for configuration and IAM changes (compute, networking, firewall rules, secrets, KMS keys, IAM, Cloud SQL, BigQuery)."
   type        = list(string)
   default = [
     # Compute resources
@@ -75,14 +75,18 @@ variable "monitored_asset_types" {
     "secretmanager.googleapis.com/SecretVersion",
     "cloudkms.googleapis.com/CryptoKey",
     "cloudkms.googleapis.com/KeyRing",
-    # Identity & Access Crown Jewels
+    # Identity & Access (IAM) Crown Jewels
     "iam.googleapis.com/ServiceAccount",
     "iam.googleapis.com/ServiceAccountKey",
     "iam.googleapis.com/Role",
+    "cloudresourcemanager.googleapis.com/Organization",
+    "cloudresourcemanager.googleapis.com/Folder",
     "cloudresourcemanager.googleapis.com/Project",
-    # Data & Kubernetes Crown Jewels
-    "storage.googleapis.com/Bucket",
+    # Data Sources (Cloud SQL, BigQuery, Cloud Storage) & Kubernetes Crown Jewels
     "sqladmin.googleapis.com/Instance",
+    "bigquery.googleapis.com/Dataset",
+    "bigquery.googleapis.com/Table",
+    "storage.googleapis.com/Bucket",
     "container.googleapis.com/Cluster",
   ]
 }

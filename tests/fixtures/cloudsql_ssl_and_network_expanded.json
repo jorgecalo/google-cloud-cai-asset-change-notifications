@@ -1,0 +1,77 @@
+{
+  "window": {
+    "startTime": "2026-09-27T01:45:30.000Z"
+  },
+  "priorAssetState": "PRESENT",
+  "asset": {
+    "name": "//sqladmin.googleapis.com/projects/prod-data-01/instances/prod-customer-orders-sql",
+    "assetType": "sqladmin.googleapis.com/Instance",
+    "ancestors": [
+      "projects/556677889900",
+      "organizations/9876543210"
+    ],
+    "resource": {
+      "version": "v1beta4",
+      "location": "europe-west1",
+      "data": {
+        "name": "prod-customer-orders-sql",
+        "databaseVersion": "POSTGRES_15",
+        "region": "europe-west1",
+        "settings": {
+          "ipConfiguration": {
+            "ipv4Enabled": true,
+            "requireSsl": false,
+            "sslMode": "ALLOW_UNENCRYPTED_AND_ENCRYPTED",
+            "authorizedNetworks": [
+              {
+                "name": "corp-vpn",
+                "value": "10.20.0.0/16"
+              },
+              {
+                "name": "external-vendor-subnet",
+                "value": "198.51.100.0/24"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "priorAsset": {
+    "name": "//sqladmin.googleapis.com/projects/prod-data-01/instances/prod-customer-orders-sql",
+    "assetType": "sqladmin.googleapis.com/Instance",
+    "resource": {
+      "version": "v1beta4",
+      "location": "europe-west1",
+      "data": {
+        "name": "prod-customer-orders-sql",
+        "databaseVersion": "POSTGRES_15",
+        "region": "europe-west1",
+        "settings": {
+          "ipConfiguration": {
+            "ipv4Enabled": true,
+            "requireSsl": true,
+            "sslMode": "ENCRYPTED_ONLY",
+            "authorizedNetworks": [
+              {
+                "name": "corp-vpn",
+                "value": "10.20.0.0/16"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "auditLog": {
+    "serviceName": "cloudsql.googleapis.com",
+    "methodName": "cloudsql.instances.update",
+    "authenticationInfo": {
+      "principalEmail": "dba-oncall@example.com"
+    },
+    "requestMetadata": {
+      "callerIp": "198.51.100.91",
+      "callerSuppliedUserAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Console"
+    }
+  }
+}
