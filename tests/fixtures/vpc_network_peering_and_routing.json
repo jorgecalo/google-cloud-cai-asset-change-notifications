@@ -1,0 +1,82 @@
+{
+  "window": {
+    "startTime": "2026-09-27T02:05:18.000Z"
+  },
+  "deleted": false,
+  "priorAssetState": "PRESENT",
+  "asset": {
+    "name": "//compute.googleapis.com/projects/prod-networking-01/global/networks/prod-vpc",
+    "assetType": "compute.googleapis.com/Network",
+    "ancestors": [
+      "projects/100200300400",
+      "folders/9988776655",
+      "organizations/123456789012"
+    ],
+    "resource": {
+      "version": "v1",
+      "discoveryDocumentUri": "https://www.googleapis.com/discovery/v1/apis/compute/v1/rest",
+      "discoveryName": "Network",
+      "parent": "//cloudresourcemanager.googleapis.com/projects/100200300400",
+      "location": "global",
+      "data": {
+        "name": "prod-vpc",
+        "autoCreateSubnetworks": false,
+        "routingConfig": {
+          "routingMode": "GLOBAL"
+        },
+        "peerings": [
+          {
+            "name": "peer-shared-services-vpc",
+            "network": "https://www.googleapis.com/compute/v1/projects/prod-shared-01/global/networks/shared-vpc",
+            "state": "ACTIVE",
+            "exportCustomRoutes": false,
+            "importCustomRoutes": false
+          },
+          {
+            "name": "peer-external-partner-vpc",
+            "network": "https://www.googleapis.com/compute/v1/projects/ext-partner-net/global/networks/partner-vpc",
+            "state": "ACTIVE",
+            "exportCustomRoutes": true,
+            "importCustomRoutes": true
+          }
+        ]
+      }
+    }
+  },
+  "priorAsset": {
+    "name": "//compute.googleapis.com/projects/prod-networking-01/global/networks/prod-vpc",
+    "assetType": "compute.googleapis.com/Network",
+    "resource": {
+      "version": "v1",
+      "location": "global",
+      "data": {
+        "name": "prod-vpc",
+        "autoCreateSubnetworks": false,
+        "routingConfig": {
+          "routingMode": "REGIONAL"
+        },
+        "peerings": [
+          {
+            "name": "peer-shared-services-vpc",
+            "network": "https://www.googleapis.com/compute/v1/projects/prod-shared-01/global/networks/shared-vpc",
+            "state": "ACTIVE",
+            "exportCustomRoutes": false,
+            "importCustomRoutes": false
+          }
+        ]
+      }
+    }
+  },
+  "auditLog": {
+    "serviceName": "compute.googleapis.com",
+    "methodName": "v1.compute.networks.addPeering",
+    "resourceName": "projects/prod-networking-01/global/networks/prod-vpc",
+    "authenticationInfo": {
+      "principalEmail": "netops-admin@example.com"
+    },
+    "requestMetadata": {
+      "callerIp": "198.51.100.54",
+      "callerSuppliedUserAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36,gzip(gfe) CloudConsole"
+    }
+  }
+}

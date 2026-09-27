@@ -171,6 +171,253 @@ class TestCaiSlackNotifications(unittest.TestCase):
         self.assertIn("Database Network Access IP Range Expanded", text)
         self.assertIn("198.51.100.0/24 (external-vendor-subnet)", text)
 
+    def test_vpc_network_peering_and_routing_mode_change(self):
+        payload = load_fixture("vpc_network_peering_and_routing.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`prod-vpc`", text)
+        self.assertIn("`compute.googleapis.com/Network`", text)
+        self.assertIn("`prod-networking-01`", text)
+        self.assertIn("VPC Network Peering Added", text)
+        self.assertIn("peer-external-partner-vpc", text)
+        self.assertIn("projects/ext-partner-net/global/networks/partner-vpc", text)
+        self.assertIn("exportCustomRoutes=True", text)
+        self.assertIn("VPC Dynamic Routing Mode Changed", text)
+        self.assertIn("`REGIONAL` -> `GLOBAL`", text)
+
+    def test_vpc_subnetwork_flowlogs_private_access_and_cidr_modified(self):
+        payload = load_fixture("vpc_subnetwork_flowlogs_disabled.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`prod-eu-west1-subnet`", text)
+        self.assertIn("`compute.googleapis.com/Subnetwork`", text)
+        self.assertIn("Private Google Access Disabled", text)
+        self.assertIn("VPC Flow Logs Disabled", text)
+        self.assertIn("Subnetwork IP CIDR Range Modified", text)
+        self.assertIn("`10.10.0.0/24` -> `10.10.0.0/16`", text)
+
+    def test_vpc_default_route_router_nat_and_vpn_tunnel_posture(self):
+        route_payload = {
+            "priorAssetState": "DOES_NOT_EXIST",
+            "asset": {
+                "name": "//compute.googleapis.com/projects/prod-networking-01/global/routes/default-internet-egress",
+                "assetType": "compute.googleapis.com/Route",
+                "resource": {
+                    "data": {
+                        "name": "default-internet-egress",
+                        "destRange": "0.0.0.0/0",
+                        "nextHopGateway": "projects/prod-networking-01/global/gateways/default-internet-gateway",
+                    }
+                },
+            },
+        }
+        route_text = all_text(cai_main.build_blocks(route_payload))
+        self.assertIn("Default Internet / Catch-All Route (`0.0.0.0/0`) Configured", route_text)
+        self.assertIn("default-internet-gateway", route_text)
+
+        vpn_payload = {
+            "priorAssetState": "DOES_NOT_EXIST",
+            "asset": {
+                "name": "//compute.googleapis.com/projects/prod-networking-01/regions/europe-west1/vpnTunnels/partner-vpn-01",
+                "assetType": "compute.googleapis.com/VpnTunnel",
+                "resource": {
+                    "data": {
+                        "name": "partner-vpn-01",
+                        "peerIp": "203.0.113.250",
+                    }
+                },
+            },
+        }
+        vpn_text = all_text(cai_main.build_blocks(vpn_payload))
+        self.assertIn("Hybrid Network Connectivity Created", vpn_text)
+        self.assertIn("peerIp=203.0.113.250", vpn_text)
+
+    def test_iam_service_account_key_created(self):
+        payload = load_fixture("iam_service_account_key_created.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`iam.googleapis.com/ServiceAccountKey`", text)
+        self.assertIn("`prod-payments-01`", text)
+        self.assertIn("CREATED", text)
+        self.assertIn("User-Managed Service Account Key Created", text)
+        self.assertIn("prod-payments-sa@prod-payments-01.iam.gserviceaccount.com", text)
+        self.assertIn("gcloud CLI (`gcloud iam service-accounts keys create`)", text)
+
+    def test_iam_custom_role_permissions_expanded(self):
+        payload = load_fixture("iam_custom_role_permissions_expanded.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`iam.googleapis.com/Role`", text)
+        self.assertIn("customSupportRole", text)
+        self.assertIn("IAM Custom Role Permissions Expanded", text)
+        self.assertIn("High-Risk Privilege Escalation Permission(s) Added", text)
+        self.assertIn("iam.serviceAccounts.actAs", text)
+        self.assertIn("iam.serviceAccounts.getAccessToken", text)
+        self.assertIn("secretmanager.versions.access", text)
+
+    def test_iam_workload_identity_pool_provider_unrestricted(self):
+        wif_payload = {
+            "priorAssetState": "PRESENT",
+            "asset": {
+                "name": "//iam.googleapis.com/projects/112233445566/locations/global/workloadIdentityPools/github-pool/providers/github-oidc",
+                "assetType": "iam.googleapis.com/WorkloadIdentityPoolProvider",
+                "resource": {
+                    "data": {
+                        "name": "github-oidc",
+                        "oidc": {"issuerUri": "https://token.actions.githubusercontent.com"},
+                        "attributeCondition": "",
+                    }
+                },
+            },
+            "priorAsset": {
+                "name": "//iam.googleapis.com/projects/112233445566/locations/global/workloadIdentityPools/github-pool/providers/github-oidc",
+                "assetType": "iam.googleapis.com/WorkloadIdentityPoolProvider",
+                "resource": {
+                    "data": {
+                        "name": "github-oidc",
+                        "oidc": {"issuerUri": "https://token.actions.githubusercontent.com"},
+                        "attributeCondition": "assertion.repository_owner == 'my-org'",
+                    }
+                },
+            },
+        }
+        wif_text = all_text(cai_main.build_blocks(wif_payload))
+        self.assertIn("Workload Identity Federation Trust Modified", wif_text)
+        self.assertIn("Workload Identity Provider Attribute Condition Modified or Missing", wif_text)
+        self.assertIn("NONE (unrestricted)", wif_text)
+
+    def test_org_policy_constraint_weakened_and_v1_org_policy(self):
+        payload = load_fixture("org_policy_constraint_weakened.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`orgpolicy.googleapis.com/Policy`", text)
+        self.assertIn("iam.disableServiceAccountKeyCreation", text)
+        self.assertIn("Organization Policy Constraint Enforcement Disabled", text)
+        self.assertIn("enforce: true -> false", text)
+        self.assertIn("Organization Policy Parent Inheritance Overridden", text)
+
+        # Also test v1 CAI ORG_POLICY feed structure (asset.orgPolicy list)
+        v1_org_policy_payload = {
+            "priorAssetState": "PRESENT",
+            "asset": {
+                "name": "//cloudresourcemanager.googleapis.com/organizations/123456789012",
+                "assetType": "cloudresourcemanager.googleapis.com/Organization",
+                "orgPolicy": [
+                    {
+                        "constraint": "constraints/iam.allowedPolicyMemberDomains",
+                        "listPolicy": {
+                            "allValues": "ALLOW",
+                        },
+                    }
+                ],
+            },
+            "priorAsset": {
+                "name": "//cloudresourcemanager.googleapis.com/organizations/123456789012",
+                "assetType": "cloudresourcemanager.googleapis.com/Organization",
+                "orgPolicy": [
+                    {
+                        "constraint": "constraints/iam.allowedPolicyMemberDomains",
+                        "listPolicy": {
+                            "allowedValues": ["C0123abc"],
+                        },
+                    }
+                ],
+            },
+        }
+        v1_text = all_text(cai_main.build_blocks(v1_org_policy_payload))
+        self.assertIn("Organization Policy Constraint Set to Allow All", v1_text)
+        self.assertIn("iam.allowedPolicyMemberDomains", v1_text)
+        self.assertIn("organizations/123456789012", v1_text)
+
+    def test_gke_cluster_security_posture_weakened(self):
+        payload = load_fixture("gke_cluster_security_posture_weakened.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`prod-payments-gke`", text)
+        self.assertIn("`container.googleapis.com/Cluster`", text)
+        self.assertIn("Confidential GKE Nodes Disabled", text)
+        self.assertIn("GKE Boot Disk Cloud KMS Key Removed", text)
+        self.assertIn("GKE Default Compute Service Account Used", text)
+        self.assertIn("Broad GKE Node Access Scope", text)
+        self.assertIn("GKE Node Secure Boot Disabled", text)
+        self.assertIn("GKE Node Integrity Monitoring Disabled", text)
+        self.assertIn("GKE Application-Layer Secret Encryption Disabled", text)
+        self.assertIn("GKE Security Posture Disabled", text)
+        self.assertIn("GKE Workload Vulnerability Scanning Disabled", text)
+        self.assertIn("GKE Security Bulletin Notifications Disabled", text)
+        self.assertIn("GKE Private Nodes Disabled", text)
+        self.assertIn("GKE Public Control Plane Endpoint Enabled", text)
+        self.assertIn("GKE Control Plane Open to the Internet", text)
+        self.assertIn("GKE Network Policy Disabled", text)
+        self.assertIn("GKE Service Mesh Certificates Disabled", text)
+        self.assertIn("GKE Binary Authorization Disabled", text)
+        self.assertIn("GKE Legacy Client Certificate Issued", text)
+        self.assertIn("GKE Google Groups for RBAC Disabled", text)
+        self.assertIn("GKE Legacy ABAC Authorization Enabled", text)
+        self.assertIn("GKE Secret Manager Add-on Disabled", text)
+        self.assertIn("GKE Shielded Nodes Disabled", text)
+        self.assertIn("GKE Workload Identity Disabled", text)
+
+    def test_cloudrun_auth_ingress_and_binauthz_weakened(self):
+        payload = load_fixture("cloudrun_auth_ingress_and_binauthz_weakened.json")
+        blocks = cai_main.build_blocks(payload)
+        text = all_text(blocks)
+
+        self.assertIn("`checkout-api`", text)
+        self.assertIn("`run.googleapis.com/Service`", text)
+        self.assertIn("Cloud Run Unauthenticated Access Enabled", text)
+        self.assertIn("Cloud Run Ingress Exposed to Public Internet", text)
+        self.assertIn("Cloud Run VPC Egress Weakened", text)
+        self.assertIn("Cloud Run Cloud KMS Key (CMEK) Removed", text)
+        self.assertIn("Cloud Run Threat Detection Disabled", text)
+        self.assertIn("Cloud Run Service Account Changed", text)
+        self.assertIn("Cloud Run Using Default Compute Service Account", text)
+        self.assertIn("Cloud Run Binary Authorization Disabled", text)
+        self.assertIn("Cloud Run Binary Authorization Breakglass Used", text)
+        self.assertIn("hotfix-emergency-deploy-2026", text)
+        self.assertIn("Public IAM Access Granted", text)
+
+        # Also test standalone Binary Authorization Policy change
+        binauth_policy_payload = {
+            "priorAssetState": "PRESENT",
+            "asset": {
+                "name": "//binaryauthorization.googleapis.com/projects/my-crown-jewel-prod/policy",
+                "assetType": "binaryauthorization.googleapis.com/Policy",
+                "resource": {
+                    "data": {
+                        "globalPolicyEvaluationMode": "DISABLE",
+                        "defaultAdmissionRule": {
+                            "evaluationMode": "ALWAYS_ALLOW",
+                            "enforcementMode": "DRYRUN_AUDIT_LOG_ONLY",
+                        },
+                    }
+                },
+            },
+            "priorAsset": {
+                "name": "//binaryauthorization.googleapis.com/projects/my-crown-jewel-prod/policy",
+                "assetType": "binaryauthorization.googleapis.com/Policy",
+                "resource": {
+                    "data": {
+                        "globalPolicyEvaluationMode": "ENABLE",
+                        "defaultAdmissionRule": {
+                            "evaluationMode": "REQUIRE_ATTESTATION",
+                            "enforcementMode": "ENFORCED_BLOCK_AND_AUDIT_LOG",
+                        },
+                    }
+                },
+            },
+        }
+        ba_text = all_text(cai_main.build_blocks(binauth_policy_payload))
+        self.assertIn("Binary Authorization Policy Set to ALWAYS_ALLOW", ba_text)
+        self.assertIn("Binary Authorization Policy Weakened to Dry-Run", ba_text)
+        self.assertIn("Binary Authorization Global Policy Disabled", ba_text)
+
     def test_no_placeholders_left_in_any_fixture(self):
         for fname in (
             "firewall_open_ssh_console.json",
@@ -178,6 +425,13 @@ class TestCaiSlackNotifications(unittest.TestCase):
             "secret_manager_iam_terraform.json",
             "iam_privilege_escalation.json",
             "cloudsql_ssl_and_network_expanded.json",
+            "vpc_network_peering_and_routing.json",
+            "vpc_subnetwork_flowlogs_disabled.json",
+            "iam_service_account_key_created.json",
+            "iam_custom_role_permissions_expanded.json",
+            "org_policy_constraint_weakened.json",
+            "gke_cluster_security_posture_weakened.json",
+            "cloudrun_auth_ingress_and_binauthz_weakened.json",
         ):
             payload = load_fixture(fname)
             dumped = json.dumps(cai_main.build_blocks(payload))

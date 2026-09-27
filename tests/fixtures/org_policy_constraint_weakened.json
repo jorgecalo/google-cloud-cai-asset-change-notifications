@@ -1,0 +1,67 @@
+{
+  "window": {
+    "startTime": "2026-09-27T02:25:50.000Z"
+  },
+  "deleted": false,
+  "priorAssetState": "PRESENT",
+  "asset": {
+    "name": "//orgpolicy.googleapis.com/projects/prod-core-01/policies/iam.disableServiceAccountKeyCreation",
+    "assetType": "orgpolicy.googleapis.com/Policy",
+    "ancestors": [
+      "projects/112233445566",
+      "folders/9988776655",
+      "organizations/123456789012"
+    ],
+    "resource": {
+      "version": "v2",
+      "discoveryDocumentUri": "https://orgpolicy.googleapis.com/$discovery/rest?version=v2",
+      "discoveryName": "GoogleCloudOrgpolicyV2Policy",
+      "parent": "//cloudresourcemanager.googleapis.com/projects/112233445566",
+      "location": "global",
+      "data": {
+        "name": "projects/prod-core-01/policies/iam.disableServiceAccountKeyCreation",
+        "spec": {
+          "inheritFromParent": false,
+          "reset": false,
+          "rules": [
+            {
+              "enforce": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  "priorAsset": {
+    "name": "//orgpolicy.googleapis.com/projects/prod-core-01/policies/iam.disableServiceAccountKeyCreation",
+    "assetType": "orgpolicy.googleapis.com/Policy",
+    "resource": {
+      "version": "v2",
+      "location": "global",
+      "data": {
+        "name": "projects/prod-core-01/policies/iam.disableServiceAccountKeyCreation",
+        "spec": {
+          "inheritFromParent": true,
+          "reset": false,
+          "rules": [
+            {
+              "enforce": true
+            }
+          ]
+        }
+      }
+    }
+  },
+  "auditLog": {
+    "serviceName": "orgpolicy.googleapis.com",
+    "methodName": "google.cloud.orgpolicy.v2.OrgPolicy.UpdatePolicy",
+    "resourceName": "projects/prod-core-01/policies/iam.disableServiceAccountKeyCreation",
+    "authenticationInfo": {
+      "principalEmail": "org-admin@example.com"
+    },
+    "requestMetadata": {
+      "callerIp": "198.51.100.77",
+      "callerSuppliedUserAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36,gzip(gfe) CloudConsole"
+    }
+  }
+}

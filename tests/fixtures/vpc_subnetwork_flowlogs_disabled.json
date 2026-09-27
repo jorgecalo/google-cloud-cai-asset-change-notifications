@@ -1,0 +1,66 @@
+{
+  "window": {
+    "startTime": "2026-09-27T02:10:45.000Z"
+  },
+  "deleted": false,
+  "priorAssetState": "PRESENT",
+  "asset": {
+    "name": "//compute.googleapis.com/projects/prod-networking-01/regions/europe-west1/subnetworks/prod-eu-west1-subnet",
+    "assetType": "compute.googleapis.com/Subnetwork",
+    "ancestors": [
+      "projects/100200300400",
+      "folders/9988776655",
+      "organizations/123456789012"
+    ],
+    "resource": {
+      "version": "v1",
+      "discoveryDocumentUri": "https://www.googleapis.com/discovery/v1/apis/compute/v1/rest",
+      "discoveryName": "Subnetwork",
+      "parent": "//cloudresourcemanager.googleapis.com/projects/100200300400",
+      "location": "europe-west1",
+      "data": {
+        "name": "prod-eu-west1-subnet",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-networking-01/global/networks/prod-vpc",
+        "ipCidrRange": "10.10.0.0/16",
+        "privateIpGoogleAccess": false,
+        "enableFlowLogs": false,
+        "logConfig": {
+          "enable": false
+        }
+      }
+    }
+  },
+  "priorAsset": {
+    "name": "//compute.googleapis.com/projects/prod-networking-01/regions/europe-west1/subnetworks/prod-eu-west1-subnet",
+    "assetType": "compute.googleapis.com/Subnetwork",
+    "resource": {
+      "version": "v1",
+      "location": "europe-west1",
+      "data": {
+        "name": "prod-eu-west1-subnet",
+        "network": "https://www.googleapis.com/compute/v1/projects/prod-networking-01/global/networks/prod-vpc",
+        "ipCidrRange": "10.10.0.0/24",
+        "privateIpGoogleAccess": true,
+        "enableFlowLogs": true,
+        "logConfig": {
+          "enable": true,
+          "aggregationInterval": "INTERVAL_5_SEC",
+          "flowSampling": 0.5,
+          "metadata": "INCLUDE_ALL_METADATA"
+        }
+      }
+    }
+  },
+  "auditLog": {
+    "serviceName": "compute.googleapis.com",
+    "methodName": "v1.compute.subnetworks.patch",
+    "resourceName": "projects/prod-networking-01/regions/europe-west1/subnetworks/prod-eu-west1-subnet",
+    "authenticationInfo": {
+      "principalEmail": "netops-admin@example.com"
+    },
+    "requestMetadata": {
+      "callerIp": "198.51.100.54",
+      "callerSuppliedUserAgent": "google-cloud-sdk gcloud/492.0.0 command/gcloud.compute.networks.subnets.update"
+    }
+  }
+}

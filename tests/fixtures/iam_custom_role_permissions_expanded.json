@@ -1,0 +1,63 @@
+{
+  "window": {
+    "startTime": "2026-09-27T02:20:33.000Z"
+  },
+  "deleted": false,
+  "priorAssetState": "PRESENT",
+  "asset": {
+    "name": "//iam.googleapis.com/projects/prod-core-01/roles/customSupportRole",
+    "assetType": "iam.googleapis.com/Role",
+    "ancestors": [
+      "projects/112233445566",
+      "organizations/123456789012"
+    ],
+    "resource": {
+      "version": "v1",
+      "discoveryDocumentUri": "https://iam.googleapis.com/$discovery/rest?version=v1",
+      "discoveryName": "Role",
+      "parent": "//cloudresourcemanager.googleapis.com/projects/112233445566",
+      "location": "global",
+      "data": {
+        "name": "projects/prod-core-01/roles/customSupportRole",
+        "title": "Custom Support & Diagnostics Role",
+        "stage": "GA",
+        "includedPermissions": [
+          "compute.instances.get",
+          "compute.instances.list",
+          "iam.serviceAccounts.actAs",
+          "iam.serviceAccounts.getAccessToken",
+          "secretmanager.versions.access"
+        ]
+      }
+    }
+  },
+  "priorAsset": {
+    "name": "//iam.googleapis.com/projects/prod-core-01/roles/customSupportRole",
+    "assetType": "iam.googleapis.com/Role",
+    "resource": {
+      "version": "v1",
+      "location": "global",
+      "data": {
+        "name": "projects/prod-core-01/roles/customSupportRole",
+        "title": "Custom Support & Diagnostics Role",
+        "stage": "GA",
+        "includedPermissions": [
+          "compute.instances.get",
+          "compute.instances.list"
+        ]
+      }
+    }
+  },
+  "auditLog": {
+    "serviceName": "iam.googleapis.com",
+    "methodName": "google.iam.admin.v1.UpdateRole",
+    "resourceName": "projects/prod-core-01/roles/customSupportRole",
+    "authenticationInfo": {
+      "principalEmail": "admin-breakglass@example.com"
+    },
+    "requestMetadata": {
+      "callerIp": "198.51.100.77",
+      "callerSuppliedUserAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36,gzip(gfe) CloudConsole"
+    }
+  }
+}

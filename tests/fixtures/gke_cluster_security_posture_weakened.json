@@ -1,0 +1,181 @@
+{
+  "window": {
+    "startTime": "2026-09-27T11:30:00Z"
+  },
+  "asset": {
+    "name": "//container.googleapis.com/projects/my-crown-jewel-prod/locations/us-central1/clusters/prod-payments-gke",
+    "assetType": "container.googleapis.com/Cluster",
+    "ancestors": [
+      "projects/123456789012",
+      "folders/987654321",
+      "organizations/111222333"
+    ],
+    "resource": {
+      "version": "v1",
+      "discoveryName": "Cluster",
+      "location": "us-central1",
+      "parent": "//cloudresourcemanager.googleapis.com/projects/123456789012",
+      "data": {
+        "name": "prod-payments-gke",
+        "location": "us-central1",
+        "confidentialNodes": {
+          "enabled": false
+        },
+        "databaseEncryption": {
+          "state": "DECRYPTED",
+          "keyName": ""
+        },
+        "nodeConfig": {
+          "serviceAccount": "default",
+          "bootDiskKmsKey": "",
+          "oauthScopes": [
+            "https://www.googleapis.com/auth/cloud-platform"
+          ],
+          "shieldedInstanceConfig": {
+            "enableSecureBoot": false,
+            "enableIntegrityMonitoring": false
+          }
+        },
+        "securityPostureConfig": {
+          "mode": "DISABLED",
+          "vulnerabilityMode": "VULNERABILITY_DISABLED"
+        },
+        "notificationConfig": {
+          "pubsub": {
+            "enabled": false,
+            "topic": "projects/my-crown-jewel-prod/topics/gke-security-bulletins"
+          }
+        },
+        "privateClusterConfig": {
+          "enablePrivateNodes": false,
+          "enablePrivateEndpoint": false
+        },
+        "masterAuthorizedNetworksConfig": {
+          "enabled": true,
+          "cidrBlocks": [
+            {
+              "displayName": "all-internet",
+              "cidrBlock": "0.0.0.0/0"
+            }
+          ]
+        },
+        "networkPolicy": {
+          "enabled": false
+        },
+        "meshCertificates": {
+          "enableCertificates": false
+        },
+        "binaryAuthorization": {
+          "evaluationMode": "DISABLED"
+        },
+        "masterAuth": {
+          "clientCertificateConfig": {
+            "issueClientCertificate": true
+          }
+        },
+        "authenticatorGroupsConfig": {
+          "enabled": false,
+          "securityGroup": "gke-security-groups@example.com"
+        },
+        "legacyAbac": {
+          "enabled": true
+        },
+        "secretManagerConfig": {
+          "enabled": false
+        },
+        "shieldedNodes": {
+          "enabled": false
+        },
+        "workloadIdentityConfig": {
+          "workloadPool": ""
+        }
+      }
+    }
+  },
+  "priorAsset": {
+    "name": "//container.googleapis.com/projects/my-crown-jewel-prod/locations/us-central1/clusters/prod-payments-gke",
+    "assetType": "container.googleapis.com/Cluster",
+    "resource": {
+      "version": "v1",
+      "discoveryName": "Cluster",
+      "location": "us-central1",
+      "data": {
+        "name": "prod-payments-gke",
+        "location": "us-central1",
+        "confidentialNodes": {
+          "enabled": true
+        },
+        "databaseEncryption": {
+          "state": "ENCRYPTED",
+          "keyName": "projects/my-crown-jewel-prod/locations/us-central1/keyRings/gke-kr/cryptoKeys/etcd-cmek"
+        },
+        "nodeConfig": {
+          "serviceAccount": "gke-nodes-sa@my-crown-jewel-prod.iam.gserviceaccount.com",
+          "bootDiskKmsKey": "projects/my-crown-jewel-prod/locations/us-central1/keyRings/gke-kr/cryptoKeys/node-boot-cmek",
+          "oauthScopes": [
+            "https://www.googleapis.com/auth/logging.write",
+            "https://www.googleapis.com/auth/monitoring"
+          ],
+          "shieldedInstanceConfig": {
+            "enableSecureBoot": true,
+            "enableIntegrityMonitoring": true
+          }
+        },
+        "securityPostureConfig": {
+          "mode": "ENTERPRISE",
+          "vulnerabilityMode": "VULNERABILITY_ENTERPRISE"
+        },
+        "notificationConfig": {
+          "pubsub": {
+            "enabled": true,
+            "topic": "projects/my-crown-jewel-prod/topics/gke-security-bulletins"
+          }
+        },
+        "privateClusterConfig": {
+          "enablePrivateNodes": true,
+          "enablePrivateEndpoint": true
+        },
+        "masterAuthorizedNetworksConfig": {
+          "enabled": true,
+          "cidrBlocks": [
+            {
+              "displayName": "corp-bastion",
+              "cidrBlock": "10.100.0.0/24"
+            }
+          ]
+        },
+        "networkPolicy": {
+          "enabled": true
+        },
+        "meshCertificates": {
+          "enableCertificates": true
+        },
+        "binaryAuthorization": {
+          "evaluationMode": "PROJECT_SINGLETON_POLICY_ENFORCE"
+        },
+        "masterAuth": {
+          "clientCertificateConfig": {
+            "issueClientCertificate": false
+          }
+        },
+        "authenticatorGroupsConfig": {
+          "enabled": true,
+          "securityGroup": "gke-security-groups@example.com"
+        },
+        "legacyAbac": {
+          "enabled": false
+        },
+        "secretManagerConfig": {
+          "enabled": true
+        },
+        "shieldedNodes": {
+          "enabled": true
+        },
+        "workloadIdentityConfig": {
+          "workloadPool": "my-crown-jewel-prod.svc.id.goog"
+        }
+      }
+    }
+  },
+  "priorAssetState": "PRESENT"
+}

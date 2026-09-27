@@ -56,38 +56,68 @@ variable "enable_iam_feed" {
   default     = true
 }
 
+variable "org_policy_feed_id" {
+  description = "ID of the Cloud Asset Inventory feed for Organization Policy (ORG_POLICY) constraint changes."
+  type        = string
+  default     = "cai-crown-jewels-org-policy-feed"
+}
+
+variable "enable_org_policy_feed" {
+  description = "Whether to create a CAI feed monitoring ORG_POLICY changes across the organization, folders, and projects."
+  type        = bool
+  default     = true
+}
+
 variable "monitored_asset_types" {
-  description = "Crown Jewel CAI Asset Types to monitor for configuration and IAM changes (compute, networking, firewall rules, secrets, KMS keys, IAM, Cloud SQL, BigQuery)."
+  description = "Crown Jewel CAI Asset Types to monitor for configuration, IAM, and Organization Policy changes (compute, VPC networking, hybrid connectivity, firewall rules, secrets, KMS keys, IAM, Org Policies, Cloud SQL, BigQuery)."
   type        = list(string)
   default = [
     # Compute resources
     "compute.googleapis.com/Instance",
     "compute.googleapis.com/InstanceTemplate",
-    # Networking & Firewall rules
+    # VPC Networking, Firewall rules & Hybrid Connectivity
     "compute.googleapis.com/Firewall",
     "compute.googleapis.com/FirewallPolicy",
     "compute.googleapis.com/Network",
     "compute.googleapis.com/Subnetwork",
     "compute.googleapis.com/Route",
     "compute.googleapis.com/Router",
+    "compute.googleapis.com/VpnTunnel",
+    "compute.googleapis.com/HaVpnGateway",
+    "compute.googleapis.com/InterconnectAttachment",
+    "networksecurity.googleapis.com/AuthorizationPolicy",
+    "networksecurity.googleapis.com/ServerTlsPolicy",
     # Secret & Cryptographic Crown Jewels
     "secretmanager.googleapis.com/Secret",
     "secretmanager.googleapis.com/SecretVersion",
     "cloudkms.googleapis.com/CryptoKey",
     "cloudkms.googleapis.com/KeyRing",
-    # Identity & Access (IAM) Crown Jewels
+    # Identity, Access (IAM) & Organization Policy Crown Jewels
     "iam.googleapis.com/ServiceAccount",
     "iam.googleapis.com/ServiceAccountKey",
     "iam.googleapis.com/Role",
+    "iam.googleapis.com/WorkloadIdentityPool",
+    "iam.googleapis.com/WorkloadIdentityPoolProvider",
+    "orgpolicy.googleapis.com/Policy",
+    "orgpolicy.googleapis.com/CustomConstraint",
     "cloudresourcemanager.googleapis.com/Organization",
     "cloudresourcemanager.googleapis.com/Folder",
     "cloudresourcemanager.googleapis.com/Project",
-    # Data Sources (Cloud SQL, BigQuery, Cloud Storage) & Kubernetes Crown Jewels
+    # Data Sources (Cloud SQL, BigQuery, Cloud Storage)
     "sqladmin.googleapis.com/Instance",
     "bigquery.googleapis.com/Dataset",
     "bigquery.googleapis.com/Table",
     "storage.googleapis.com/Bucket",
+    # Kubernetes (GKE), Service Mesh, Cloud Run & Binary Authorization Crown Jewels
     "container.googleapis.com/Cluster",
+    "container.googleapis.com/NodePool",
+    "gkehub.googleapis.com/Membership",
+    "gkehub.googleapis.com/Feature",
+    "run.googleapis.com/Service",
+    "run.googleapis.com/Job",
+    "run.googleapis.com/DomainMapping",
+    "binaryauthorization.googleapis.com/Policy",
+    "binaryauthorization.googleapis.com/Attestor",
   ]
 }
 

@@ -249,6 +249,41 @@ python3 app/cai-asset-change-notifications/main.py tests/fixtures/iam_privilege_
 SLACK_BOT_TOKEN=xoxb-your-token \
 SLACK_CHANNEL=C0123456789 \
 python3 app/cai-asset-change-notifications/main.py tests/fixtures/cloudsql_ssl_and_network_expanded.json --send
+
+# Demo 6: VPC Network Peering Added (with custom route export) & Dynamic Routing Mode Changed
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/vpc_network_peering_and_routing.json --send
+
+# Demo 7: VPC Subnetwork Flow Logs & Private Google Access Disabled + CIDR Expanded
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/vpc_subnetwork_flowlogs_disabled.json --send
+
+# Demo 8: IAM User-Managed Service Account Key Created via gcloud CLI
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/iam_service_account_key_created.json --send
+
+# Demo 9: IAM Custom Role Permissions Expanded with High-Risk Privilege Escalation Permissions
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/iam_custom_role_permissions_expanded.json --send
+
+# Demo 10: Organization Policy Constraint Weakened (iam.disableServiceAccountKeyCreation disabled)
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/org_policy_constraint_weakened.json --send
+
+# Demo 11: GKE Cluster Security Posture, Confidential Nodes, KMS Encryption, & Networking Weakened
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/gke_cluster_security_posture_weakened.json --send
+
+# Demo 12: Cloud Run Unauthenticated Access, Public Ingress, CMEK Removal, Threat Detection & Binary Authorization Breakglass
+SLACK_BOT_TOKEN=xoxb-your-token \
+SLACK_CHANNEL=C0123456789 \
+python3 app/cai-asset-change-notifications/main.py tests/fixtures/cloudrun_auth_ingress_and_binauthz_weakened.json --send
 ```
 </details>
 
@@ -292,13 +327,13 @@ See [Deployment](#-deployment) for the full steps and required permissions.
 
 ## ✨ Features
 
-- **Real-time Crown Jewel monitoring (`RESOURCE` + `IAM_POLICY`).** Configures organization-wide (and optional folder-scoped) Cloud Asset Inventory feeds for both resource configuration changes and IAM policy changes.
+- **Real-time Crown Jewel monitoring (`RESOURCE` + `IAM_POLICY` + `ORG_POLICY`).** Configures organization-wide (and optional folder-scoped) Cloud Asset Inventory feeds for resource configuration changes, IAM policy changes, and Organization Policy constraint changes.
 - **Native Security Command Center (SCC v2) compatibility.** Supports streaming SCC v2 findings (`google_scc_v2_organization_notification_config`) into the same Pub/Sub topic and Cloud Run function.
 - **Before/After Cloud Asset Inventory Diff Engine.** Automatically computes a clean, human-readable diff between `priorAsset` and `asset` (filtering out volatile metadata like `etag` or `fingerprint` and redacting sensitive fields like `secretData`).
 - **Cloud Audit Logs Attribution (`Who` & `How`).** Correlates asset changes with Google Cloud Audit Logs (`cloudaudit.googleapis.com/activity`) to identify:
   - **Who did the change:** Human User (`User Account`), `Service Account`, `Workload Identity`, or **Service Account Impersonation** (`User ➔ Service Account` delegation chain).
   - **How the change was executed:** **Terraform (IaC)**, **Google Cloud Console (Web UI / ClickOps)**, **`gcloud` CLI** (including the exact command), or **API / SDK**.
-- **Automated Risk & Drift Detection.** Flags high-risk changes such as **ClickOps / manual changes outside Terraform**, **IAM privilege escalation** (users/SAs gaining additional roles or custom role permissions), **database configuration weakening** (Cloud SQL SSL enforcement disabled or `authorizedNetworks` IP ranges expanded), `0.0.0.0/0` public firewall ingress, and `ONE_TO_ONE_NAT` public IPs on VMs.
+- **Automated Risk & Drift Detection.** Flags high-risk changes such as **ClickOps / manual changes outside Terraform**, **IAM privilege escalation** (users/SAs gaining additional roles or high-risk custom role permissions), **Organization Policy constraint weakening**, **GKE & Cloud Run security posture regressions** (Confidential Nodes, Cloud KMS CMEK vs. Google-managed keys, Binary Authorization, Threat Detection, Workload Identity, Private Cluster / Authorized Networks, unauthenticated Cloud Run access), **database configuration weakening** (Cloud SQL SSL enforcement disabled or `authorizedNetworks` IP ranges expanded), `0.0.0.0/0` public firewall ingress, and VPC peering / route changes.
 - **Encrypted secret handling with Cloud KMS.** The Slack bot token is committed only as **Cloud KMS ciphertext** (`cryptoKeyEncrypter` / `cryptoKeyDecrypter`) and injected into the Cloud Run function via **Secret Manager**.
 - **Least-privilege architecture.** Dedicated service accounts for build (`cainotifier-build`) and runtime (`cainotifier`), `ALLOW_INTERNAL_ONLY` ingress, and IAM scoped strictly to the KMS key, secret, and Cloud Run service.
 
@@ -308,13 +343,13 @@ See [Deployment](#-deployment) for the full steps and required permissions.
 
 Even in cloud environments that strictly enforce the **principle of least privilege**, a subset of engineers, break-glass responders, or CI/CD service accounts must retain permissions to manage critical production assets. This solution addresses **core security & operations use cases**:
 
-### 1. IAM Privilege Escalation & Added Roles Monitoring (Users, Service Accounts & Custom Roles)
-- **Why it matters:** Privilege escalation often happens incrementally—an existing `user:` or `serviceAccount:` with baseline permissions (e.g., `roles/logging.logWriter` or `roles/viewer`) is granted additional roles (`roles/iam.serviceAccountTokenCreator`, `roles/bigquery.admin`, `roles/secretmanager.secretAccessor`), brand-new roles are added to an Organization/Folder/Project/Resource IAM policy, or a custom IAM role (`iam.googleapis.com/Role`) has its `includedPermissions` expanded.
-- **What you get:** The notifier compares `priorAsset.iamPolicy` and `asset.iamPolicy` per role **and per principal**, explicitly alerting on:
-  - **IAM Privilege Escalation:** When a user or service account gains more permissions than they previously held (`~ Privilege Escalation (serviceAccount:app-worker@...): gained ['roles/iam.serviceAccountTokenCreator'] (existing: ['roles/logging.logWriter'])`).
+### 1. IAM Privilege Escalation, Custom Roles, Workload Identity & Organization Policies
+- **Why it matters:** Privilege escalation often happens incrementally—an existing `user:` or `serviceAccount:` with baseline permissions (e.g., `roles/logging.logWriter` or `roles/viewer`) is granted additional roles (`roles/iam.serviceAccountTokenCreator`, `roles/bigquery.admin`, `roles/secretmanager.secretAccessor`), brand-new roles are added to an Organization/Folder/Project/Resource IAM policy, a custom IAM role (`iam.googleapis.com/Role`) has its `includedPermissions` expanded with privilege-escalation permissions, or an Organization Policy constraint (`orgpolicy.googleapis.com/Policy`) is weakened.
+- **What you get:** The notifier compares `priorAsset` and `asset` per role, per principal, and per constraint rule, explicitly alerting on:
+  - **IAM Privilege Escalation:** When a user or service account gains more permissions than they previously held.
   - **Added IAM Roles & Bindings:** Every newly introduced role (`+ IAM Role Added`) and newly bound principal (`+ IAM Binding`).
-  - **Custom Role Permission Expansion & SA Keys:** Added `includedPermissions` on `iam.googleapis.com/Role` and creation of user-managed `iam.googleapis.com/ServiceAccountKey` credentials.
-  - Covered by both the primary Slack notifier and the specialized IAM monitors ([`app/monitor-principals/`](file:///Users/jorgecalo/Documents/GitHub/google-cloud-cai-asset-change-notifications/app/monitor-principals) and [`app/sa-iam-monitor/`](file:///Users/jorgecalo/Documents/GitHub/google-cloud-cai-asset-change-notifications/app/sa-iam-monitor)).
+  - **Custom Role Permission Expansion & SA Keys:** Added `includedPermissions` (highlighting high-risk permissions like `iam.serviceAccounts.actAs` or `getAccessToken`) on `iam.googleapis.com/Role`, creation of user-managed `iam.googleapis.com/ServiceAccountKey` credentials, and unrestricted `WorkloadIdentityPoolProvider` attribute conditions.
+  - **Organization Policy Constraint Weakening:** Disabling boolean constraints (`enforce: true -> false`), setting list constraints to `allowAll`, or overriding parent policy inheritance.
 
 ### 2. Database & Data Source Security Configuration Monitoring (Cloud SQL & BigQuery)
 - **Why it matters:** Production databases (`sqladmin.googleapis.com/Instance`) and analytics warehouses (`bigquery.googleapis.com/Dataset`, `bigquery.googleapis.com/Table`) hold your most sensitive business data. Subtle configuration changes—such as **disabling SSL enforcement** (`requireSsl: true -> false` or downgrading `sslMode` from `ENCRYPTED_ONLY` to `ALLOW_UNENCRYPTED_AND_ENCRYPTED`) or **expanding the network access IP range** (`settings.ipConfiguration.authorizedNetworks` adding a wider CIDR like `198.51.100.0/24` or `0.0.0.0/0`)—can expose databases to unencrypted traffic or external networks.
@@ -323,9 +358,15 @@ Even in cloud environments that strictly enforce the **principle of least privil
   - **Database Network Access IP Range is Expanded** (new CIDR blocks added to Cloud SQL `authorizedNetworks` or `ipv4Enabled` turned on).
   - **BigQuery Dataset ACLs are Expanded** (new entries added to `resource.data.access` or public exposure via `allUsers` / `allAuthenticatedUsers`).
 
-### 3. Detecting "ClickOps" Drift, Firewall Rule Changes, Compute Exposure & Secret Vaults (Firewalls, VMs, Secrets & KMS)
-- **Why it matters:** During an incident or debugging session, an authorized engineer might manually modify a production VPC firewall rule (`compute.googleapis.com/Firewall`—changing **source/destination IP ranges**, **allowed/denied port ranges**, or **disabling firewall rule logging** `logConfig.enable`), attach an external IP (`ONE_TO_ONE_NAT`) or change the machine series on a Compute Engine VM (`compute.googleapis.com/Instance`), or modify a Secret Manager secret (`secretmanager.googleapis.com/Secret`) or Cloud KMS key (`cloudkms.googleapis.com/CryptoKey`) via the **Google Cloud Console** or **`gcloud` CLI**—bypassing Git review and Terraform pipelines.
-- **What you get:** Every configuration attribute change is captured in the CAI diff and analyzed for risk—including `sourceRanges` (`0.0.0.0/0` or added/removed CIDRs), `destinationRanges`, `allowed`/`denied` port ranges & protocols, `logConfig.enable` (firewall logging turned off), VM external IPs, disabled Shielded VM / Confidential Compute controls, and secret/key modifications (with secret payload values automatically redacted)—paired with a **⚠️ Manual Change Outside IaC (ClickOps / CLI)** warning whenever the change was not executed by Terraform.
+### 3. Kubernetes (GKE), Cloud Run & Binary Authorization Posture Monitoring
+- **Why it matters:** Containerized platforms (`container.googleapis.com/Cluster`, `container.googleapis.com/NodePool`, `run.googleapis.com/Service`, `binaryauthorization.googleapis.com/Policy`) combine network exposure, identity, encryption, and runtime security controls in a single resource definition.
+- **What you get:** Dedicated security posture rules for:
+  - **GKE Clusters & Node Pools:** Confidential GKE Nodes (`confidentialNodes.enabled`), application-layer Secret encryption (`databaseEncryption` Cloud KMS CMEK vs. Google-managed key), boot disk encryption (`bootDiskKmsKey`), Security Posture (`securityPostureConfig.mode`, `vulnerabilityMode`), security bulletin notifications (`notificationConfig.pubsub.enabled`), Private Cluster & Control Plane Authorized Networks (`0.0.0.0/0`), Network Policy, Service Mesh certificates (`meshCertificates`, `gkehub.googleapis.com/*`), Node Service Account & `cloud-platform` access scopes, Binary Authorization, Client Certificates (`issueClientCertificate`), Google Groups for RBAC, Legacy ABAC, Secret Manager CSI add-on, Shielded GKE Nodes (Secure Boot & Integrity Monitoring), and Workload Identity.
+  - **Cloud Run & Binary Authorization:** Unauthenticated access (`invokerIamDisabled` or `allUsers` on `roles/run.invoker`), public ingress (`INGRESS_TRAFFIC_ALL`) and VPC egress weakening, Cloud KMS CMEK removal, Threat Detection status (`threatDetectionEnabled`), runtime Service Account changes, Binary Authorization disablement or breakglass usage (`breakglassJustification`), and Binary Authorization policy weakens (`ALWAYS_ALLOW`, `DRYRUN_AUDIT_LOG_ONLY`).
+
+### 4. Detecting "ClickOps" Drift, VPC / Hybrid Networking, Compute Exposure & Secret Vaults
+- **Why it matters:** During an incident or debugging session, an authorized engineer might manually modify a production VPC firewall rule (`compute.googleapis.com/Firewall`), establish a new VPC peering (`compute.googleapis.com/Network`) or `0.0.0.0/0` default route (`compute.googleapis.com/Route`), disable subnet VPC Flow Logs (`compute.googleapis.com/Subnetwork`), attach an external IP (`ONE_TO_ONE_NAT`) to a Compute Engine VM (`compute.googleapis.com/Instance`), or modify a Secret Manager secret (`secretmanager.googleapis.com/Secret`) via the **Google Cloud Console** or **`gcloud` CLI**—bypassing Git review and Terraform pipelines.
+- **What you get:** Every configuration attribute change is captured in the CAI diff and analyzed for risk, paired with a **⚠️ Manual Change Outside IaC (ClickOps / CLI)** warning whenever the change was not executed by Terraform.
 
 ---
 
@@ -335,10 +376,11 @@ Even with strict IAM and least privilege, authorized administrators or automatio
 
 | Category | CAI Asset Types (`monitored_asset_types`) | Why It Is a Crown Jewel |
 |---|---|---|
-| **Identity & Access (IAM)** | `cloudresourcemanager.googleapis.com/Organization`<br/>`cloudresourcemanager.googleapis.com/Folder`<br/>`cloudresourcemanager.googleapis.com/Project`<br/>`iam.googleapis.com/ServiceAccount`<br/>`iam.googleapis.com/ServiceAccountKey`<br/>`iam.googleapis.com/Role` | Detects **privilege escalation** (existing users or service accounts gaining additional roles/permissions), **newly added IAM roles**, custom role `includedPermissions` expansion, and service account key creation. |
+| **Identity, Access (IAM) & Organization Policies** | `cloudresourcemanager.googleapis.com/Organization`<br/>`cloudresourcemanager.googleapis.com/Folder`<br/>`cloudresourcemanager.googleapis.com/Project`<br/>`iam.googleapis.com/ServiceAccount`<br/>`iam.googleapis.com/ServiceAccountKey`<br/>`iam.googleapis.com/Role`<br/>`iam.googleapis.com/WorkloadIdentityPool`<br/>`iam.googleapis.com/WorkloadIdentityPoolProvider`<br/>`orgpolicy.googleapis.com/Policy`<br/>`orgpolicy.googleapis.com/CustomConstraint` | Detects **privilege escalation**, **newly added IAM roles**, custom role `includedPermissions` expansion, service account key creation, Workload Identity Federation trust changes, and **Organization Policy constraint weakening**. |
 | **Database & Data Sources (Cloud SQL, BigQuery, Storage)** | `sqladmin.googleapis.com/Instance`<br/>`bigquery.googleapis.com/Dataset`<br/>`bigquery.googleapis.com/Table`<br/>`storage.googleapis.com/Bucket` | Detects **disabling SSL enforcement** (`requireSsl: false` / `sslMode` downgrade), **expanding network access IP ranges** (`authorizedNetworks` CIDRs), enabling public IPv4 (`ipv4Enabled`), and expanding BigQuery dataset ACLs or Cloud Storage bucket access. |
-| **Compute Resources** | `compute.googleapis.com/Instance`<br/>`compute.googleapis.com/InstanceTemplate`<br/>`container.googleapis.com/Cluster` | Detects public `ONE_TO_ONE_NAT` IP attachments, machine series drift, disabled Shielded VM / Confidential Compute, or GKE cluster exposure. |
-| **Networking & Firewall Rules** | `compute.googleapis.com/Firewall`<br/>`compute.googleapis.com/FirewallPolicy`<br/>`compute.googleapis.com/Network`<br/>`compute.googleapis.com/Subnetwork`<br/>`compute.googleapis.com/Route`<br/>`compute.googleapis.com/Router` | Monitors **every firewall & network change**: source & destination IP ranges (`sourceRanges`, `destinationRanges`, `0.0.0.0/0`), port ranges & protocols (`allowed`, `denied`), **firewall rule logging** (`logConfig.enable`), rule state/priority, VPC peering/routes, and `privateIpGoogleAccess` / VPC Flow Logs. |
+| **Kubernetes (GKE), Cloud Run & Binary Authorization** | `container.googleapis.com/Cluster`<br/>`container.googleapis.com/NodePool`<br/>`gkehub.googleapis.com/Membership`<br/>`gkehub.googleapis.com/Feature`<br/>`run.googleapis.com/Service`<br/>`run.googleapis.com/Job`<br/>`run.googleapis.com/DomainMapping`<br/>`binaryauthorization.googleapis.com/Policy`<br/>`binaryauthorization.googleapis.com/Attestor` | Detects GKE Confidential Nodes, Cloud KMS vs. Google-managed encryption, Security Posture & vulnerability scanning, Private Cluster & Authorized Networks, Service Mesh, Shielded Nodes, Workload Identity, Legacy ABAC/Client Certs, Cloud Run authentication/ingress/CMEK/Threat Detection/SA changes, and Binary Authorization policies & breakglass events. |
+| **Compute Resources** | `compute.googleapis.com/Instance`<br/>`compute.googleapis.com/InstanceTemplate` | Detects public `ONE_TO_ONE_NAT` IP attachments, machine series drift, or disabled Shielded VM / Confidential Compute. |
+| **VPC, Hybrid Networking & Firewall Rules** | `compute.googleapis.com/Firewall`<br/>`compute.googleapis.com/FirewallPolicy`<br/>`compute.googleapis.com/Network`<br/>`compute.googleapis.com/Subnetwork`<br/>`compute.googleapis.com/Route`<br/>`compute.googleapis.com/Router`<br/>`compute.googleapis.com/VpnTunnel`<br/>`compute.googleapis.com/HaVpnGateway`<br/>`compute.googleapis.com/InterconnectAttachment`<br/>`networksecurity.googleapis.com/AuthorizationPolicy`<br/>`networksecurity.googleapis.com/ServerTlsPolicy` | Monitors **every firewall, VPC & hybrid network change**: source & destination IP ranges (`sourceRanges`, `destinationRanges`, `0.0.0.0/0`), port ranges & protocols, **firewall rule logging**, VPC peerings & custom route export, dynamic routing mode, default internet routes, Cloud NAT, VPN tunnels, Interconnects, Private Google Access, and VPC Flow Logs. |
 | **Secrets & Encryption Keys** | `secretmanager.googleapis.com/Secret`<br/>`secretmanager.googleapis.com/SecretVersion`<br/>`cloudkms.googleapis.com/CryptoKey`<br/>`cloudkms.googleapis.com/KeyRing` | Detects secret creation/deletion, secret version changes, KMS rotation changes, or unauthorized `secretAccessor` / `cryptoKeyDecrypter` IAM bindings. |
 
 ---

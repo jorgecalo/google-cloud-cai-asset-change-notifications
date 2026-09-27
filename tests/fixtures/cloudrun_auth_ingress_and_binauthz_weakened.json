@@ -1,0 +1,86 @@
+{
+  "window": {
+    "startTime": "2026-09-27T11:45:00Z"
+  },
+  "asset": {
+    "name": "//run.googleapis.com/projects/my-crown-jewel-prod/locations/us-central1/services/checkout-api",
+    "assetType": "run.googleapis.com/Service",
+    "ancestors": [
+      "projects/123456789012",
+      "folders/987654321",
+      "organizations/111222333"
+    ],
+    "resource": {
+      "version": "v2",
+      "discoveryName": "Service",
+      "location": "us-central1",
+      "parent": "//cloudresourcemanager.googleapis.com/projects/123456789012",
+      "data": {
+        "name": "projects/my-crown-jewel-prod/locations/us-central1/services/checkout-api",
+        "ingress": "INGRESS_TRAFFIC_ALL",
+        "invokerIamDisabled": true,
+        "threatDetectionEnabled": false,
+        "binaryAuthorization": {
+          "useDefault": false,
+          "breakglassJustification": "hotfix-emergency-deploy-2026"
+        },
+        "template": {
+          "serviceAccount": "123456789012-compute@developer.gserviceaccount.com",
+          "encryptionKey": "",
+          "vpcAccess": {
+            "connector": "projects/my-crown-jewel-prod/locations/us-central1/connectors/prod-vpc-conn",
+            "egress": "PRIVATE_RANGES_ONLY"
+          }
+        }
+      }
+    },
+    "iamPolicy": {
+      "bindings": [
+        {
+          "role": "roles/run.invoker",
+          "members": [
+            "allUsers",
+            "serviceAccount:frontend-gateway@my-crown-jewel-prod.iam.gserviceaccount.com"
+          ]
+        }
+      ]
+    }
+  },
+  "priorAsset": {
+    "name": "//run.googleapis.com/projects/my-crown-jewel-prod/locations/us-central1/services/checkout-api",
+    "assetType": "run.googleapis.com/Service",
+    "resource": {
+      "version": "v2",
+      "discoveryName": "Service",
+      "location": "us-central1",
+      "data": {
+        "name": "projects/my-crown-jewel-prod/locations/us-central1/services/checkout-api",
+        "ingress": "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER",
+        "invokerIamDisabled": false,
+        "threatDetectionEnabled": true,
+        "binaryAuthorization": {
+          "useDefault": true
+        },
+        "template": {
+          "serviceAccount": "checkout-runner@my-crown-jewel-prod.iam.gserviceaccount.com",
+          "encryptionKey": "projects/my-crown-jewel-prod/locations/us-central1/keyRings/run-kr/cryptoKeys/run-cmek",
+          "vpcAccess": {
+            "connector": "projects/my-crown-jewel-prod/locations/us-central1/connectors/prod-vpc-conn",
+            "egress": "ALL_TRAFFIC"
+          }
+        }
+      }
+    },
+    "iamPolicy": {
+      "bindings": [
+        {
+          "role": "roles/run.invoker",
+          "members": [
+            "serviceAccount:frontend-gateway@my-crown-jewel-prod.iam.gserviceaccount.com"
+          ]
+        }
+      ]
+    }
+  },
+  "priorAssetState": "PRESENT"
+}

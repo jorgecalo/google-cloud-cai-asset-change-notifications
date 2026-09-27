@@ -14,15 +14,18 @@ data "google_project" "this" {
 locals {
   services = toset([
     "artifactregistry.googleapis.com",
+    "binaryauthorization.googleapis.com",
     "cloudasset.googleapis.com",
     "cloudbuild.googleapis.com",
     "cloudfunctions.googleapis.com",
     "cloudkms.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "compute.googleapis.com",
+    "container.googleapis.com",
     "eventarc.googleapis.com",
     "iam.googleapis.com",
     "logging.googleapis.com",
+    "orgpolicy.googleapis.com",
     "pubsub.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
@@ -75,7 +78,7 @@ resource "google_pubsub_topic_iam_member" "cai_publisher" {
 }
 
 # Organization-wide CAI feed for Crown Jewel RESOURCE configuration changes
-# (Compute VMs, VPC Networks, Subnetworks, Firewalls, Secret Manager, KMS, etc.)
+# (Compute VMs, VPC Networks, Subnetworks, Firewalls, Secret Manager, KMS, Org Policies, etc.)
 resource "google_cloud_asset_organization_feed" "crown_jewels_resources" {
   billing_project = var.project_id
   org_id          = var.org_id
@@ -112,6 +115,31 @@ resource "google_cloud_asset_organization_feed" "crown_jewels_iam" {
   feed_id         = var.iam_feed_id
   content_type    = "IAM_POLICY"
   asset_types     = var.monitored_asset_types
+
+  feed_output_config {
+    pubsub_destination {
+      topic = google_pubsub_topic.cai_changes.id
+    }
+  }
+
+  depends_on = [
+    google_project_service.services,
+    google_pubsub_topic_iam_member.cai_publisher,
+  ]
+}
+
+# Organization-wide CAI feed for ORG_POLICY constraint changes across Org/Folders/Projects
+resource "google_cloud_asset_organization_feed" "crown_jewels_org_policy" {
+  count           = var.enable_org_policy_feed ? 1 : 0
+  billing_project = var.project_id
+  org_id          = var.org_id
+  feed_id         = var.org_policy_feed_id
+  content_type    = "ORG_POLICY"
+  asset_types = [
+    "cloudresourcemanager.googleapis.com/Organization",
+    "cloudresourcemanager.googleapis.com/Folder",
+    "cloudresourcemanager.googleapis.com/Project",
+  ]
 
   feed_output_config {
     pubsub_destination {
