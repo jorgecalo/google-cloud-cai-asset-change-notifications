@@ -16,6 +16,35 @@ Even when you enforce the **principle of least privilege**, privileged engineers
 
 Google Cloud Asset Inventory (natively integrated with **Security Command Center**) streams real-time `RESOURCE` and `IAM_POLICY` changes to a Pub/Sub topic. A 2nd gen **Cloud Run function** computes the **before/after CAI diff**, correlates the event with **Cloud Audit Logs** to attribute **Who** made the change (User vs. Service Account / Impersonation) and **How** it was executed (**Google Cloud Console ClickOps**, **Terraform**, or **`gcloud` CLI**), and posts a rich **Slack Block Kit** alert to your security channel. Everything is deployed with Terraform and secured with **Cloud KMS** secret encryption.
 
+### Component Overview
+
+```mermaid
+flowchart LR
+    Assets["Crown Jewel Assets
+    (VMs, Firewalls, VPCs, Secrets, KMS, IAM)"]
+    CAI["Cloud Asset Inventory & SCC v2
+    (RESOURCE & IAM_POLICY Feeds)"]
+    PubSub["Cloud Pub/Sub
+    + Eventarc Trigger"]
+    Func["Cloud Run Function (2nd gen)
+    CAI Diff + Risk & Drift Engine"]
+    Audit["Cloud Audit Logs
+    Who (User/SA) & How (Console/Terraform/CLI)"]
+    KMS["Cloud KMS"]
+    SM["Secret Manager
+    (Slack Bot Token)"]
+    Slack["Slack Channel
+    (Block Kit Alert)"]
+
+    Assets -->|State Change| CAI
+    CAI -->|TemporalAsset / Finding| PubSub
+    PubSub --> Func
+    Audit -.->|Enriches Who & How| Func
+    KMS -.->|Decrypts at Deploy| SM
+    SM -.->|Injects Token| Func
+    Func -->|chat.postMessage| Slack
+```
+
 ---
 
 ### What a notification looks like
@@ -315,12 +344,17 @@ Even with strict IAM and least privilege, authorized administrators or automatio
 
 ```mermaid
 flowchart LR
-    CAI["Cloud Asset Inventory<br/>Resource & IAM Feeds"] -->|TemporalAsset| PS["Pub/Sub topic"]
-    SCC["Security Command Center<br/>(Optional SCC v2 Config)"] -.->|Finding| PS
+    CAI["Cloud Asset Inventory
+    (Resource & IAM Feeds)"] -->|TemporalAsset| PS["Pub/Sub topic"]
+    SCC["Security Command Center
+    (Optional SCC v2 Config)"] -.->|Finding| PS
     PS --> EA["Eventarc trigger"]
-    EA --> CF["Cloud Run function (2nd gen)<br/>Python 3.13"]
-    CAL["Cloud Audit Logs<br/>(Cloud Logging API)"] -.->|Who & How<br/>(Console / Terraform / CLI)| CF
-    SM["Secret Manager<br/>Slack bot token"] -.->|env var| CF
+    EA --> CF["Cloud Run function (2nd gen)
+    Python 3.13"]
+    CAL["Cloud Audit Logs
+    (Cloud Logging API)"] -.->|"Who & How (Console / Terraform / CLI)"| CF
+    SM["Secret Manager
+    (Slack bot token)"] -.->|env var| CF
     KMS["Cloud KMS"] -.->|decrypts at deploy time| SM
     CF -->|chat.postMessage| SL["Slack channel"]
 ```
